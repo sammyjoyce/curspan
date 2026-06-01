@@ -32,7 +32,7 @@ Add the new file to the `base_sources` array in `build.zig` so it is compiled (s
 
 ## 2. Register command metadata
 
-Add the forward declaration, argument table, examples, and a command row to `g_app_commands` in `src/cli/commands.c`. This one table feeds dispatch, help text, and `myapp opencli`.
+Add the forward declaration, argument table, examples, and a command row to `g_app_commands` in `src/cli/commands.c`. This one table feeds dispatch, help text, and `myapp opencli`. `APP_COUNTOF` (from `src/cli/commands.h`, already included there) yields the element count.
 
 ```c
 app_error app_cmd_greet(const app_config_t *config, int argc,
@@ -57,9 +57,9 @@ static const app_command_t g_app_commands[] = {
      .summary = "Greet multiple people.",
      .handler = app_cmd_greet,
      .arguments = greet_args,
-     .argument_count = sizeof(greet_args) / sizeof(greet_args[0]),
+     .argument_count = APP_COUNTOF(greet_args),
      .examples = greet_examples,
-     .example_count = sizeof(greet_examples) / sizeof(greet_examples[0]),
+     .example_count = APP_COUNTOF(greet_examples),
      .requires_terminal = false},
 };
 ```
