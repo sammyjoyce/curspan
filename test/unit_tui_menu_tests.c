@@ -382,7 +382,22 @@ static bool test_numbering_skips_separators(void) {
   return ok;
 }
 
+static bool test_menu_version_macro_is_monotonic(void) {
+  // The encode helper must order versions so consumers can feature-detect with
+  // a single >= comparison, and the published TUI_MENU_VERSION must match its
+  // component macros.
+  return TUI_MENU_VERSION ==
+             TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR,
+                                     TUI_MENU_VERSION_MINOR,
+                                     TUI_MENU_VERSION_PATCH) &&
+         TUI_MENU_VERSION_ENCODE(1, 0, 0) > TUI_MENU_VERSION_ENCODE(0, 9, 9) &&
+         TUI_MENU_VERSION_ENCODE(1, 1, 0) > TUI_MENU_VERSION_ENCODE(1, 0, 9) &&
+         TUI_MENU_VERSION >= TUI_MENU_VERSION_ENCODE(1, 0, 0);
+}
+
 void run_tui_menu_unit_tests(unit_stats_t *stats) {
+  unit_record(stats, test_menu_version_macro_is_monotonic(),
+              "TUI_MENU_VERSION encodes monotonically and matches components");
   {
     const tui_menu_item_t item = {
         .label = "&Foo",

@@ -640,29 +640,42 @@ tui_menu_result_t tui_show_menu(tui_window_t *window,
 #endif
 
   bool exit_loop = false;
+  // Repaint only when the model actually changed. wgetch() here is blocking
+  // (cbreak + keypad, no wtimeout/nodelay), so the common path already renders
+  // once per key. The dirty flag matters on the signal path: SIGINT/SIGTERM
+  // interrupt the blocking wgetch() (handlers installed without SA_RESTART, see
+  // tui_install_signal_handlers) and return ERR; without this guard that wakeup
+  // would re-erase and repaint the whole frame for no visible change. It also
+  // keeps the loop correct if a future change adds an input timeout. Set true
+  // on the first frame, on every processed key/mouse event, and on resize;
+  // left false after a bare ERR wakeup.
+  bool needs_render = true;
   while (!exit_loop) {
     if (tui_interrupted()) {
       result.status = TUI_MENU_INTERRUPTED;
       break;
     }
-    if (!tui_menu_layout_compute(&L, L.frame, config)) {
-      result.status = TUI_MENU_TOO_SMALL;
-      break;
+    if (needs_render) {
+      if (!tui_menu_layout_compute(&L, L.frame, config)) {
+        result.status = TUI_MENU_TOO_SMALL;
+        break;
+      }
+      werase(L.frame->win);
+
+      tui_menu_state_ensure_selection_visible(state, L.item_area_h);
+
+      tui_menu_render_header(&L, state);
+      tui_menu_render_items(&L, state);
+      /* Footer clears its whole row (it reserves the last content column), then
+       * the scroll affordance paints into that reserved column on top - so the
+       * indicator survives the footer's row clear. Order matters here. */
+      tui_menu_render_footer(&L, state);
+      tui_menu_render_scroll(&L, state);
+
+      wnoutrefresh(L.frame->win);
+      doupdate();
+      needs_render = false;
     }
-    werase(L.frame->win);
-
-    tui_menu_state_ensure_selection_visible(state, L.item_area_h);
-
-    tui_menu_render_header(&L, state);
-    tui_menu_render_items(&L, state);
-    /* Footer clears its whole row (it reserves the last content column), then
-     * the scroll affordance paints into that reserved column on top - so the
-     * indicator survives the footer's row clear. Order matters here. */
-    tui_menu_render_footer(&L, state);
-    tui_menu_render_scroll(&L, state);
-
-    wnoutrefresh(L.frame->win);
-    doupdate();
 
     const int ch = wgetch(L.frame->win);
     int confirm_index = -1;
@@ -698,6 +711,7 @@ tui_menu_result_t tui_show_menu(tui_window_t *window,
       }
       clear();
       refresh();
+      needs_render = true;
       continue;
     }
 #ifdef NCURSES_MOUSE_VERSION
@@ -708,6 +722,10 @@ tui_menu_result_t tui_show_menu(tui_window_t *window,
     {
       ev = menu_handle_key(state, ch, L.item_area_h, &confirm_index);
     }
+
+    // A real key/mouse event was processed; the model may have changed (moved
+    // selection, edited the search query, toggled help), so repaint next loop.
+    needs_render = true;
 
     switch (ev) {
     case TUI_MENU_EV_CONFIRM: {

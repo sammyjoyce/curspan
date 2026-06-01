@@ -21,6 +21,12 @@ release:
 release-tui:
     zig build -Doptimize=ReleaseSafe -Denable-tui=true
 
+# Build a stripped, minimal-footprint release (no symbol table; ~4x smaller).
+# Use for shipping when you don't need in-process backtraces. The plain
+# `release`/`release-tui` recipes keep symbols for debugging.
+release-min:
+    zig build -Doptimize=ReleaseSafe -Denable-tui=true -Dstrip=true
+
 # Build the reusable TUI menu static library
 tui-menu-lib:
     zig build tui-menu-lib

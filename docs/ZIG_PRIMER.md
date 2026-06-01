@@ -109,13 +109,32 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
 | `-Doptimize=` | `Debug` (default), `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall` | C optimization level (no Zig runtime is linked into this C-only binary) |
 | `-Dtarget=` | e.g. `x86_64-windows`, `aarch64-macos` | Cross-compile target |
 | `-Denable-tui=` | `true` / `false` (default `true`) | Compile the ncurses TUI and link curses |
+| `-Denable-cli-style=` | `true` / `false` (default `true`) | Compile the styled CLI help/error/version layer (uses terminfo when available, ANSI otherwise) |
+| `-Dcli-terminfo=` | `auto` (default) / `required` / `disabled` | Terminfo backend policy for the CLI styling layer |
 | `-Dapp-name=` | string (default `myapp`) | Application and binary name |
 | `-Dversion=` | string (default `0.1.0`) | Version baked into the binary |
 | `-Dstrict=` | `true` / `false` (default `false`) | Add extra warnings and treat warnings as errors |
 | `-Dharden=` | `true` / `false` (default `false`) | Add supported compiler hardening flags such as stack protector and fortify |
+| `-Dstrip=` | `true` / `false` (default `false`) | Strip symbols from the installed binary (~4x smaller; drops in-process backtraces). The `just release-min` recipe sets this |
 | `-Dcurses-prefix=` | path | Override the ncurses/PDCurses install prefix |
 | `-Dterminal-backend=` | `auto` (default) / `none` / `ghostty` | PTY/TUI terminal-test backend selection; see [TESTING.md](TESTING.md) |
 | `-Dghostty-vt-prefix=` | path | Override the libghostty-vt install prefix |
+
+### Binary footprint
+
+The default `zig build` is a `Debug` binary (~4.6 MB) that keeps full symbols.
+For shipping, pick a release optimization and decide whether you need symbols.
+Measured `ReleaseSafe` sizes (x86-64 Linux):
+
+| Configuration | Size | Links |
+| --- | --- | --- |
+| default (TUI + CLI styling), unstripped | ~549 KB | libc, ncursesw |
+| default, `-Dstrip=true` (`just release-min`) | ~139 KB | libc, ncursesw |
+| `-Denable-tui=false -Dstrip=true` | ~93 KB | libc, ncursesw |
+| `-Denable-tui=false -Denable-cli-style=false -Dstrip=true` | ~68 KB | libc only |
+
+Disabling both front-ends drops the curses dependency entirely, leaving a
+libc-only binary for headless/JSON deployments.
 
 ## Build steps
 
@@ -134,7 +153,18 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
 ## Adding a C file
 
 1. Drop the file under `src/`.
-2. Add its path to the `base_sources` array in `build.zig` (or `tui_sources` if it is TUI-only):
+2. Add its path to the source array in `build.zig` that matches when it should
+   compile. `build()` keeps a few named lists so each file lands in exactly one
+   place:
+
+   | Array | Compiled when | For |
+   | --- | --- | --- |
+   | `base_sources` | always | core CLI/app code |
+   | `shared_ui_sources` | TUI **or** CLI styling enabled | text layout + design tokens shared by both front-ends |
+   | `cli_style_sources` | `-Denable-cli-style` (default on) | CLI help/error/version renderers |
+   | `tui_sources` | `-Denable-tui` (default on) | ncurses screens |
+
+   Most new code is `base_sources`:
 
    ```zig
    const base_sources = [_][]const u8{
@@ -143,7 +173,10 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
    };
    ```
 
-3. Rebuild with `zig build`. Headers are found automatically because `src/` is on the include path.
+3. Rebuild with `zig build`. Headers are found automatically because `src/` is
+   on the include path. If a TUI-only file references a shared primitive (text
+   layout or the design palette), that primitive is already in
+   `shared_ui_sources`, so it links in every front-end combination.
 
 ## Cross-compiling
 

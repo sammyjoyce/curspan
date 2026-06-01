@@ -79,6 +79,12 @@ which also defines `ENABLE_TUI=1` and links `ncursesw` (or `pdcurses` on Windows
 Pass `-Denable-tui=false` to skip those sources. A separate `tui-menu-lib` step builds the reusable menu
 primitive as a static library with installed headers.
 
+The two front-ends are independent build axes: the shared UI primitives (text
+layout, design tokens) compile whenever *either* the TUI or the CLI styling
+layer is enabled, so every combination links. A stripped `ReleaseSafe` binary
+ranges from ~139 KB (full TUI + styling) down to a ~68 KB libc-only build with
+both front-ends off; see the [footprint matrix](ZIG_PRIMER.md#binary-footprint).
+
 For the build options, steps, and how to add a source file, see the [Zig Primer](ZIG_PRIMER.md).
 
 ## Platform differences

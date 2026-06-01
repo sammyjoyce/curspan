@@ -115,6 +115,17 @@ zig-out/include/c23-cli-template/tui/tui_progress.h
 - `tui_menu_config_t`, `tui_menu_item_t`, and `tui_menu_result_t`
 - the pointer-lifetime rules documented in `tui_menu.h`
 - separators, disabled items, mnemonics, search, numeric jumps, resize handling, and interrupt handling
+- the `TUI_MENU_VERSION` compile-time macro (with `TUI_MENU_VERSION_ENCODE`) for feature-detecting the seam across template updates
+
+The archive is self-contained: it bundles the shared UI primitives the menu
+needs (`text_layout.c`, `design_tokens.c`), so linking it requires only a
+curses library. Link a consumer with:
+
+```bash
+cc app.c -Izig-out/include \
+   -Lzig-out/lib -ltui-menu \
+   $(pkg-config --libs ncursesw) -o app
+```
 
 **Private:**
 

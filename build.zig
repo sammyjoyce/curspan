@@ -280,6 +280,10 @@ pub fn build(b: *std.Build) void {
     const ghostty_vt_prefix = b.option([]const u8, "ghostty-vt-prefix", "Override libghostty-vt install prefix for Ghostty-backed terminal tests");
     const strict = b.option(bool, "strict", "Treat warnings as errors and enable extra diagnostics") orelse false;
     const harden = b.option(bool, "harden", "Add supported compiler hardening flags") orelse false;
+    // Strip symbols from the installed binary. Opt-in so default builds keep
+    // symbols for debugging/backtraces; release recipes pass -Dstrip=true to
+    // ship the smaller artifact (roughly a 4x size reduction on ReleaseSafe).
+    const strip = b.option(bool, "strip", "Strip symbols from the installed binary (default: false)") orelse false;
 
     // CLI styling layer (Fang-style help/errors/version). Independent of the
     // TUI: it uses terminfo for capability detection/emission without entering
@@ -302,6 +306,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .strip = strip,
         }),
     });
     // Ensure local headers are discoverable regardless of include style
@@ -384,12 +389,22 @@ pub fn build(b: *std.Build) void {
     }
     c_flags.append(b.allocator, b.fmt("-DAPP_HAVE_TERMINFO={d}", .{@intFromBool(have_terminfo)})) catch |err| oom(err);
 
-    // CLI styling sources (shared tokens + cli/style renderers). The terminal
+    // UI primitives shared by *both* front-ends: UTF-8 text layout and the
+    // design palette. The TUI seeds its truecolor entries from
+    // APP_DESIGN_PALETTE and lays out rows with app_text_*; the CLI styling
+    // layer uses the same helpers. They must compile whenever EITHER front-end
+    // is enabled, so they live outside the cli-style gate below. (Previously
+    // they sat in cli_style_sources, which made `-Denable-cli-style=false` with
+    // the default TUI fail to link APP_DESIGN_PALETTE / app_text_*.)
+    const shared_ui_sources = [_][]const u8{
+        "src/ui/text_layout.c",
+        "src/style/design_tokens.c",
+    };
+
+    // CLI styling sources (cli/style renderers + color math). The terminal
     // backend is chosen at build time: terminfo when available, else ANSI.
     const cli_style_sources = [_][]const u8{
-        "src/ui/text_layout.c",
         "src/style/color_math.c",
-        "src/style/design_tokens.c",
         "src/cli/style/cli_term.c",
         "src/cli/style/cli_term_osc11.c",
         "src/cli/style/cli_theme.c",
@@ -404,6 +419,16 @@ pub fn build(b: *std.Build) void {
         .files = &base_sources,
         .flags = c_flags.items,
     });
+
+    // Compile the shared UI primitives once whenever either front-end needs
+    // them. Skipped only for a pure-CLI build with both the styling layer and
+    // the TUI disabled, where nothing references them.
+    if (enable_tui or enable_cli_style) {
+        exe.root_module.addCSourceFiles(.{
+            .files = &shared_ui_sources,
+            .flags = c_flags.items,
+        });
+    }
 
     if (enable_cli_style) {
         exe.root_module.addCSourceFiles(.{
@@ -487,9 +512,13 @@ pub fn build(b: *std.Build) void {
             "src/core/error.c",
             "src/utils/logging.c",
             "src/io/terminal.c",
-            // Shared design palette: tui.c seeds its truecolor entries from
-            // APP_DESIGN_PALETTE, so the token definition must be linked in.
+            // Shared UI primitives the TUI links against: tui.c seeds its
+            // truecolor entries from APP_DESIGN_PALETTE (design_tokens.c) and
+            // lays out menu rows with app_text_* (text_layout.c). Both
+            // definitions must be archived or a consumer of libtui-menu.a fails
+            // to link app_text_truncate_utf8_columns / app_text_wrap_utf8.
             "src/style/design_tokens.c",
+            "src/ui/text_layout.c",
             "src/tui/tui.c",
             "src/tui/tui_menu.c",
             "src/tui/tui_menu_adapter.c",

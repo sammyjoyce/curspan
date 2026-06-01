@@ -65,8 +65,8 @@
       "validation": "^https?://[^[:space:]]+$"
     },
     "CURRENT_YEAR": {
-      "placeholders": ["2025"],
-      "description": "Current calendar year for notices and headers.",
+      "placeholders": [],
+      "description": "Current calendar year, applied only to the LICENSE copyright line via the scoped special replacement below. Intentionally carries no generic placeholder: a bare year token like '2025' would also rewrite unrelated literals such as pinned action/tool dates in CI workflows.",
       "sources": ["current_year"],
       "validation": "^[0-9]{4}$"
     },
@@ -97,12 +97,18 @@
     ".template/*",
     "zig-out/*",
     ".zig-cache/*",
+    "zig-pkg/*",
+    ".direnv/*",
+    "build/*",
     "node_modules/*",
     "vendor/*",
     ".code/*",
     "*.bak"
   ],
   "special_replacements": {
+    "LICENSE": {
+      "Copyright (c) 2026": "Copyright (c) ${CURRENT_YEAR}"
+    },
     "build.zig": {
       "include/c23-cli-template/": "include/${PROJECT_NAME_KEBAB}/"
     },
