@@ -386,10 +386,9 @@ static bool test_menu_version_macro_is_monotonic(void) {
   // The encode helper must order versions so consumers can feature-detect with
   // a single >= comparison, and the published TUI_MENU_VERSION must match its
   // component macros.
-  return TUI_MENU_VERSION ==
-             TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR,
-                                     TUI_MENU_VERSION_MINOR,
-                                     TUI_MENU_VERSION_PATCH) &&
+  return TUI_MENU_VERSION == TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR,
+                                                     TUI_MENU_VERSION_MINOR,
+                                                     TUI_MENU_VERSION_PATCH) &&
          TUI_MENU_VERSION_ENCODE(1, 0, 0) > TUI_MENU_VERSION_ENCODE(0, 9, 9) &&
          TUI_MENU_VERSION_ENCODE(1, 1, 0) > TUI_MENU_VERSION_ENCODE(1, 0, 9) &&
          TUI_MENU_VERSION >= TUI_MENU_VERSION_ENCODE(1, 0, 0);
