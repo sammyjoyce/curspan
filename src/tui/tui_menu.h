@@ -38,9 +38,8 @@
 #define TUI_MENU_VERSION_PATCH 0
 #define TUI_MENU_VERSION_ENCODE(major, minor, patch) \
   (((major) * 1000000) + ((minor) * 1000) + (patch))
-#define TUI_MENU_VERSION                                       \
-  TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR,              \
-                          TUI_MENU_VERSION_MINOR,              \
+#define TUI_MENU_VERSION                                                  \
+  TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR, TUI_MENU_VERSION_MINOR, \
                           TUI_MENU_VERSION_PATCH)
 
 typedef struct tui_window tui_window_t; /* defined in tui.h */

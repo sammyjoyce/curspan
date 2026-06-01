@@ -152,8 +152,7 @@ static const app_command_t g_app_commands[] = {
 
 #define G_APP_COMMANDS_COUNT APP_COUNTOF(g_app_commands)
 #define G_APP_BUILTIN_OPTIONS_COUNT APP_COUNTOF(g_app_builtin_options)
-#define G_APP_GLOBAL_VALUE_OPTIONS_COUNT \
-  APP_COUNTOF(g_app_global_value_options)
+#define G_APP_GLOBAL_VALUE_OPTIONS_COUNT APP_COUNTOF(g_app_global_value_options)
 
 // The dispatch and help paths assume at least one command and at least one
 // built-in option exist; an empty table would make the template silently
