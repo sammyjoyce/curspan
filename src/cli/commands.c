@@ -100,8 +100,7 @@ static const app_global_value_option_t g_app_global_value_options[] = {
      .name = "config",
      .alias = "c",
      .arguments = config_option_args,
-     .argument_count =
-         sizeof(config_option_args) / sizeof(config_option_args[0]),
+     .argument_count = APP_COUNTOF(config_option_args),
      .description = "Specify configuration file path"},
 };
 
@@ -110,53 +109,61 @@ static const app_command_t g_app_commands[] = {
      .summary = "Print a greeting message.",
      .handler = app_cmd_hello,
      .arguments = hello_args,
-     .argument_count = sizeof(hello_args) / sizeof(hello_args[0]),
+     .argument_count = APP_COUNTOF(hello_args),
      .examples = hello_examples,
-     .example_count = sizeof(hello_examples) / sizeof(hello_examples[0]),
+     .example_count = APP_COUNTOF(hello_examples),
      .requires_terminal = false},
     {.name = "echo",
      .summary = "Echo the provided text.",
      .handler = app_cmd_echo,
      .arguments = echo_args,
-     .argument_count = sizeof(echo_args) / sizeof(echo_args[0]),
+     .argument_count = APP_COUNTOF(echo_args),
      .examples = echo_examples,
-     .example_count = sizeof(echo_examples) / sizeof(echo_examples[0]),
+     .example_count = APP_COUNTOF(echo_examples),
      .requires_terminal = false},
     {.name = "info",
      .summary = "Display application metadata.",
      .handler = app_cmd_info,
      .examples = info_examples,
-     .example_count = sizeof(info_examples) / sizeof(info_examples[0]),
+     .example_count = APP_COUNTOF(info_examples),
      .requires_terminal = false},
     {.name = "doctor",
      .summary = "Run starter diagnostics (add --deep for the TUI smoke test).",
      .handler = app_cmd_doctor,
      .options = doctor_options,
-     .option_count = sizeof(doctor_options) / sizeof(doctor_options[0]),
+     .option_count = APP_COUNTOF(doctor_options),
      .examples = doctor_examples,
-     .example_count = sizeof(doctor_examples) / sizeof(doctor_examples[0]),
+     .example_count = APP_COUNTOF(doctor_examples),
      .requires_terminal = false},
     {.name = "menu",
      .summary = "Launch the interactive TUI main menu.",
      .handler = app_cmd_menu,
      .examples = menu_examples,
-     .example_count = sizeof(menu_examples) / sizeof(menu_examples[0]),
+     .example_count = APP_COUNTOF(menu_examples),
      .requires_terminal = true,
      .hidden_from_help = true},
     {.name = "opencli",
      .summary = "Print the OpenCLI contract as JSON.",
      .handler = app_cmd_opencli,
      .examples = opencli_examples,
-     .example_count = sizeof(opencli_examples) / sizeof(opencli_examples[0]),
+     .example_count = APP_COUNTOF(opencli_examples),
      .requires_terminal = false},
 };
 
-#define G_APP_COMMANDS_COUNT \
-  (sizeof(g_app_commands) / sizeof(g_app_commands[0]))
-#define G_APP_BUILTIN_OPTIONS_COUNT \
-  (sizeof(g_app_builtin_options) / sizeof(g_app_builtin_options[0]))
+#define G_APP_COMMANDS_COUNT APP_COUNTOF(g_app_commands)
+#define G_APP_BUILTIN_OPTIONS_COUNT APP_COUNTOF(g_app_builtin_options)
 #define G_APP_GLOBAL_VALUE_OPTIONS_COUNT \
-  (sizeof(g_app_global_value_options) / sizeof(g_app_global_value_options[0]))
+  APP_COUNTOF(g_app_global_value_options)
+
+// The dispatch and help paths assume at least one command and at least one
+// built-in option exist; an empty table would make the template silently
+// broken rather than fail to build.
+static_assert(APP_COUNTOF(g_app_commands) > 0,
+              "command table must not be empty");
+static_assert(APP_COUNTOF(g_app_builtin_options) > 0,
+              "built-in option table must not be empty");
+static_assert(APP_COUNTOF(g_app_global_value_options) > 0,
+              "global value option table must not be empty");
 
 const app_command_t *app_commands(size_t *count) {
   if (count) {
