@@ -80,7 +80,6 @@ Variables are configured in `.template/template-vars.json`.
 | `PROJECT_NAME` | Human-readable project name | `My CLI` |
 | `PROJECT_NAME_SNAKE` | C/config identifier form | `my_cli` |
 | `PROJECT_NAME_KEBAB` | Binary, package, and URL form | `my-cli` |
-| `PROJECT_NAME_PASCAL` | Type/title form | `MyCli` |
 | `PROJECT_DESCRIPTION` | README and metadata description | `A focused terminal tool.` |
 | `AUTHOR_NAME` | Primary maintainer name | `Your Name` |
 | `AUTHOR_EMAIL` | Maintainer email | `you@example.com` |

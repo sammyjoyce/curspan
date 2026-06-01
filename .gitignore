@@ -10,6 +10,7 @@ zig-pkg/
 # Local agent state
 .pi/
 TASK.md
+.claude/worktrees/
 
 # OS files
 .DS_Store

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../src/core/config.h"
 #include "../src/core/config_json.h"
 #include "../src/core/error.h"
 #include "../src/core/request_json.h"
@@ -233,7 +234,36 @@ static bool test_secret_zero_clears_buffer(void) {
   return true;
 }
 
+// app_flag_apply() indexes g_app_flag_table[id] directly (config.c), so the
+// table MUST stay parallel to the app_flag_id enum: entry i describes flag i.
+// A reorder of either the enum or the table would silently apply the wrong
+// flag's exclusivity mask. Guard the invariant (and json_key hygiene) so that
+// drift fails a fast in-process test instead of corrupting runtime behavior.
+static bool test_flag_table_matches_enum_order(void) {
+  size_t count = 0;
+  const app_flag_spec_t *table = app_flag_table(&count);
+  if (!table || count != APP_FLAG_COUNT) {
+    return false;
+  }
+  for (size_t i = 0; i < count; i++) {
+    if (table[i].id != (app_flag_id)i) {
+      return false;
+    }
+    if (!table[i].json_key || table[i].json_key[0] == '\0') {
+      return false;
+    }
+    for (size_t j = 0; j < i; j++) {
+      if (strcmp(table[i].json_key, table[j].json_key) == 0) {
+        return false;  // duplicate json_key
+      }
+    }
+  }
+  return true;
+}
+
 void run_config_unit_tests(unit_stats_t *stats) {
+  unit_record(stats, test_flag_table_matches_enum_order(),
+              "flag table stays parallel to app_flag_id with unique json keys");
   unit_record(stats, test_strerror_covers_every_code(),
               "app_strerror covers every code");
   unit_record(stats, test_config_json_parses_valid_input(),

@@ -21,6 +21,12 @@ release:
 release-tui:
     zig build -Doptimize=ReleaseSafe -Denable-tui=true
 
+# Build a stripped, minimal-footprint release (no symbol table; ~4x smaller).
+# Use for shipping when you don't need in-process backtraces. The plain
+# `release`/`release-tui` recipes keep symbols for debugging.
+release-min:
+    zig build -Doptimize=ReleaseSafe -Denable-tui=true -Dstrip=true
+
 # Build the reusable TUI menu static library
 tui-menu-lib:
     zig build tui-menu-lib
@@ -84,6 +90,26 @@ fmt-check:
 # Run all checks (format + tests)
 check:
     zig build check
+
+# Guard the minimal footprint: the no-TUI, no-CLI-style build must stay
+# libc-only (no curses) and small. Linux/ELF only (uses readelf).
+footprint-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build -Doptimize=ReleaseSafe -Denable-tui=false -Denable-cli-style=false -Dstrip=true
+    bin=$(ls zig-out/bin/* | head -1)
+    if readelf -d "$bin" 2>/dev/null | grep -qiE 'ncurses|curses|tinfo'; then
+        echo "FAIL: minimal build links a curses library; a front-end TU leaked into the libc-only build"
+        readelf -d "$bin" | grep -i needed
+        exit 1
+    fi
+    size=$(stat -c%s "$bin")
+    limit=98304  # 96 KiB: generous headroom over the ~49-69 KiB libc-only build; trips on a curses regression
+    if [ "$size" -gt "$limit" ]; then
+        echo "FAIL: minimal binary ${size} B exceeds ${limit} B"
+        exit 1
+    fi
+    echo "OK: minimal libc-only build is ${size} B (limit ${limit} B), no curses NEEDED"
 
 # --- Maintenance ---
 

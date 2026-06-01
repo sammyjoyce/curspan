@@ -109,13 +109,37 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
 | `-Doptimize=` | `Debug` (default), `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall` | C optimization level (no Zig runtime is linked into this C-only binary) |
 | `-Dtarget=` | e.g. `x86_64-windows`, `aarch64-macos` | Cross-compile target |
 | `-Denable-tui=` | `true` / `false` (default `true`) | Compile the ncurses TUI and link curses |
+| `-Denable-cli-style=` | `true` / `false` (default `true`) | Compile the styled CLI help/error/version layer (uses terminfo when available, ANSI otherwise) |
+| `-Dcli-terminfo=` | `auto` (default) / `required` / `disabled` | Terminfo backend policy for the CLI styling layer |
 | `-Dapp-name=` | string (default `myapp`) | Application and binary name |
 | `-Dversion=` | string (default `0.1.0`) | Version baked into the binary |
 | `-Dstrict=` | `true` / `false` (default `false`) | Add extra warnings and treat warnings as errors |
 | `-Dharden=` | `true` / `false` (default `false`) | Add supported compiler hardening flags such as stack protector and fortify |
+| `-Dstrip=` | `true` / `false` (default `false`) | Strip symbols from the installed binary (~4x smaller; drops in-process backtraces). The `just release-min` recipe sets this |
 | `-Dcurses-prefix=` | path | Override the ncurses/PDCurses install prefix |
 | `-Dterminal-backend=` | `auto` (default) / `none` / `ghostty` | PTY/TUI terminal-test backend selection; see [TESTING.md](TESTING.md) |
 | `-Dghostty-vt-prefix=` | path | Override the libghostty-vt install prefix |
+
+### Binary footprint
+
+The default `zig build` is a `Debug` binary (~4.6 MB) that keeps full symbols.
+For shipping, pick a release optimization and decide whether you need symbols.
+Measured `ReleaseSafe` sizes (x86-64 Linux):
+
+| Configuration | Size | Links |
+| --- | --- | --- |
+| default (TUI + CLI styling), unstripped | ~549 KB | libc, ncursesw |
+| default, `-Dstrip=true` (`just release-min`) | ~139 KB | libc, ncursesw |
+| `-Denable-tui=false -Dstrip=true` | ~93 KB | libc, ncursesw |
+| `-Denable-tui=false -Denable-cli-style=false -Dstrip=true` | ~68 KB | libc only |
+
+Disabling both front-ends drops the curses dependency entirely, leaving a
+libc-only binary for headless/JSON deployments. `just footprint-check` (and a
+CI step) guards that the libc-only build never regains a curses dependency.
+
+For the absolute minimum, `-Doptimize=ReleaseSmall` trims further at the cost of
+some speed: stripped default ~102 KB / `ReleaseFast` ~115 KB, and the libc-only
+build reaches ~49 KB under `ReleaseSmall`.
 
 ## Build steps
 
@@ -126,7 +150,7 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
 | `zig build test` | CLI contract tests plus in-process unit tests |
 | `zig build unit-test` | Only the in-process unit tests |
 | `zig build terminal-test` | Unit and CLI tests plus PTY/TUI scenarios when TUI + backend are available |
-| `zig build tui-menu-lib` | Build the reusable TUI menu static library and install its headers |
+| `zig build tui-menu-lib` | Build the reusable TUI menu static library and install its headers + `pkgconfig/tui-menu.pc` |
 | `zig build fmt` / `fmt-check` | Format, or check formatting of, `build.zig`, `src`, and `test` |
 | `zig build check` | Baseline gate: `fmt-check` + tests (what CI runs) |
 | `zig build clean` | Remove `zig-out` and `.zig-cache` |
@@ -134,7 +158,18 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
 ## Adding a C file
 
 1. Drop the file under `src/`.
-2. Add its path to the `base_sources` array in `build.zig` (or `tui_sources` if it is TUI-only):
+2. Add its path to the source array in `build.zig` that matches when it should
+   compile. `build()` keeps a few named lists so each file lands in exactly one
+   place:
+
+   | Array | Compiled when | For |
+   | --- | --- | --- |
+   | `base_sources` | always | core CLI/app code |
+   | `shared_ui_sources` | TUI **or** CLI styling enabled | text layout + design tokens shared by both front-ends |
+   | `cli_style_sources` | `-Denable-cli-style` (default on) | CLI help/error/version renderers |
+   | `tui_sources` | `-Denable-tui` (default on) | ncurses screens |
+
+   Most new code is `base_sources`:
 
    ```zig
    const base_sources = [_][]const u8{
@@ -143,7 +178,45 @@ Pass these as `-D<name>=<value>` on any `zig build` command.
    };
    ```
 
-3. Rebuild with `zig build`. Headers are found automatically because `src/` is on the include path.
+3. Rebuild with `zig build`. Headers are found automatically because `src/` is
+   on the include path. If a TUI-only file references a shared primitive (text
+   layout or the design palette), that primitive is already in
+   `shared_ui_sources`, so it links in every front-end combination.
+
+## Adding a package dependency
+
+`build.zig.zon` starts with `.dependencies = .{}`. To vendor a C library (or
+another Zig package) reproducibly:
+
+1. Fetch and pin it. `zig fetch` records the URL and a content hash in
+   `build.zig.zon` so builds are hermetic:
+
+   ```bash
+   zig fetch --save=cjson https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.tar.gz
+   ```
+
+   This adds a `.cjson = .{ .url = ..., .hash = ... }` entry under
+   `.dependencies`.
+
+2. Wire it into a target in `build.zig`. Resolve the dependency, then either add
+   its C sources to a module or link a library it builds:
+
+   ```zig
+   const cjson = b.dependency("cjson", .{ .target = target, .optimize = optimize });
+   exe.root_module.addIncludePath(cjson.path("."));
+   exe.root_module.addCSourceFiles(.{
+       .files = &.{"cJSON.c"},
+       .flags = c_flags.items,
+       .root = cjson.path("."),
+   });
+   ```
+
+3. `zig build` fetches the pinned archive into the global cache on first use; the
+   hash in `build.zig.zon` makes the dependency tamper-evident. Commit the
+   updated `build.zig.zon` so collaborators and CI resolve the same revision.
+
+Keep dependencies pinned by hash (never a moving branch) and prefer adding their
+sources to a dedicated module so your `c_flags` and warning policy still apply.
 
 ## Cross-compiling
 

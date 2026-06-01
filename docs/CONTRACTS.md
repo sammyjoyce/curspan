@@ -101,6 +101,7 @@ failure.
 
 ```text
 zig-out/lib/libtui-menu.a
+zig-out/lib/pkgconfig/tui-menu.pc
 zig-out/include/c23-cli-template/core/error.h
 zig-out/include/c23-cli-template/core/types.h
 zig-out/include/c23-cli-template/tui/tui.h
@@ -115,6 +116,29 @@ zig-out/include/c23-cli-template/tui/tui_progress.h
 - `tui_menu_config_t`, `tui_menu_item_t`, and `tui_menu_result_t`
 - the pointer-lifetime rules documented in `tui_menu.h`
 - separators, disabled items, mnemonics, search, numeric jumps, resize handling, and interrupt handling
+- the `TUI_MENU_VERSION` compile-time macro (with `TUI_MENU_VERSION_ENCODE`) for feature-detecting the seam across template updates
+
+The archive is self-contained: it bundles the shared UI primitives the menu
+needs (`text_layout.c`, `design_tokens.c`), so linking it requires only a
+curses library. The archive is also self-contained for a foreign toolchain — it
+is compiled with `sanitize_c = .trap`, so its UBSan checks lower to inline traps
+instead of calls into Zig's UBSan runtime, and a plain `cc` link resolves with
+no `__ubsan_handle_*` symbols even from a Debug/ReleaseSafe build.
+
+The install ships a pkg-config manifest (`tui-menu.pc`, version tracking
+`TUI_MENU_VERSION`). Link a consumer either explicitly or via pkg-config:
+
+```bash
+# explicit
+cc app.c -Izig-out/include \
+   -Lzig-out/lib -ltui-menu \
+   $(pkg-config --libs ncursesw) -o app
+
+# via the installed .pc (use --static to pull in -lncursesw)
+PKG_CONFIG_PATH=zig-out/lib/pkgconfig \
+cc app.c $(pkg-config --cflags tui-menu) \
+   $(pkg-config --libs --static tui-menu) -o app
+```
 
 **Private:**
 

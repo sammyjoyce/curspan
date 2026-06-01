@@ -23,6 +23,25 @@
 #include "../core/error.h"
 #include "../core/types.h"
 
+/*
+ * Compile-time version of the supported tui-menu seam (see docs/CONTRACTS.md).
+ * Bump when this header's public API changes in a consumer-visible way so that
+ * downstream code linking libtui-menu.a can feature-detect:
+ *
+ *   #if defined(TUI_MENU_VERSION) && \
+ *       TUI_MENU_VERSION >= TUI_MENU_VERSION_ENCODE(1, 0, 0)
+ *     // use the 1.0 menu API
+ *   #endif
+ */
+#define TUI_MENU_VERSION_MAJOR 1
+#define TUI_MENU_VERSION_MINOR 0
+#define TUI_MENU_VERSION_PATCH 0
+#define TUI_MENU_VERSION_ENCODE(major, minor, patch) \
+  (((major) * 1000000) + ((minor) * 1000) + (patch))
+#define TUI_MENU_VERSION                                                  \
+  TUI_MENU_VERSION_ENCODE(TUI_MENU_VERSION_MAJOR, TUI_MENU_VERSION_MINOR, \
+                          TUI_MENU_VERSION_PATCH)
+
 typedef struct tui_window tui_window_t; /* defined in tui.h */
 
 /* The title is uppercased into a fixed stack buffer for the centered header;

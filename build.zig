@@ -280,6 +280,10 @@ pub fn build(b: *std.Build) void {
     const ghostty_vt_prefix = b.option([]const u8, "ghostty-vt-prefix", "Override libghostty-vt install prefix for Ghostty-backed terminal tests");
     const strict = b.option(bool, "strict", "Treat warnings as errors and enable extra diagnostics") orelse false;
     const harden = b.option(bool, "harden", "Add supported compiler hardening flags") orelse false;
+    // Strip symbols from the installed binary. Opt-in so default builds keep
+    // symbols for debugging/backtraces; release recipes pass -Dstrip=true to
+    // ship the smaller artifact (roughly a 4x size reduction on ReleaseSafe).
+    const strip = b.option(bool, "strip", "Strip symbols from the installed binary (default: false)") orelse false;
 
     // CLI styling layer (Fang-style help/errors/version). Independent of the
     // TUI: it uses terminfo for capability detection/emission without entering
@@ -302,15 +306,22 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .strip = strip,
         }),
     });
     // Ensure local headers are discoverable regardless of include style
     exe.root_module.addIncludePath(b.path("src"));
 
     // Base source files
-    const base_sources = [_][]const u8{
-        "src/main.c",
-        "src/ui/action_item.c",
+    // Translation units that BOTH the exe and the unit-test binary compile with
+    // the identical c_flags vector, and that are never behind a feature flag in
+    // either target. They are archived once into an internal static library
+    // (app-core, below) and linked into both, instead of being compiled twice.
+    // Keep this list to the unconditional intersection: anything gated by
+    // -Denable-tui / -Denable-cli-style (design_tokens, text_layout, color_math,
+    // cli/style/*, tui/*) must stay per-target so a minimal build still skips it,
+    // and the mutually-exclusive terminal backends stay per-target too.
+    const core_shared_sources = [_][]const u8{
         "src/core/app_info.c",
         "src/core/diagnostics.c",
         "src/core/error.c",
@@ -322,12 +333,19 @@ pub fn build(b: *std.Build) void {
         "src/utils/memory.c",
         "src/utils/colors.c",
         "src/io/input.c",
-        "src/io/output.c",
         "src/io/terminal.c",
+        "src/cli/option_meta.c",
+    };
+
+    // exe-only sources: the program entry point and CLI command policy that the
+    // unit-test binary does not compile.
+    const base_sources = [_][]const u8{
+        "src/main.c",
+        "src/ui/action_item.c",
+        "src/io/output.c",
         "src/cli/help.c",
         "src/cli/args.c",
         "src/cli/commands.c",
-        "src/cli/option_meta.c",
         "src/cli/commands_basic.c",
         "src/cli/commands_info.c",
         "src/cli/commands_doctor.c",
@@ -384,12 +402,46 @@ pub fn build(b: *std.Build) void {
     }
     c_flags.append(b.allocator, b.fmt("-DAPP_HAVE_TERMINFO={d}", .{@intFromBool(have_terminfo)})) catch |err| oom(err);
 
-    // CLI styling sources (shared tokens + cli/style renderers). The terminal
+    // Internal (non-installed) static library of the core_shared_sources. It is
+    // compiled once with the now-complete c_flags vector and linked into both
+    // the exe and the unit-test binary, so those 13 translation units are no
+    // longer compiled twice per `zig build`. It is NOT installed and NOT a build
+    // step: its objects reach the binaries solely via linkLibrary. Distinct from
+    // the installed tui-menu library, which is compiled with different flags and
+    // never linked alongside this one.
+    const core_lib = b.addLibrary(.{
+        .name = "app-core",
+        .linkage = .static,
+        .root_module = b.createModule(.{
+            .root_source_file = null,
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    core_lib.root_module.addIncludePath(b.path("src"));
+    core_lib.root_module.addCSourceFiles(.{
+        .files = &core_shared_sources,
+        .flags = c_flags.items,
+    });
+    exe.root_module.linkLibrary(core_lib);
+
+    // UI primitives shared by *both* front-ends: UTF-8 text layout and the
+    // design palette. The TUI seeds its truecolor entries from
+    // APP_DESIGN_PALETTE and lays out rows with app_text_*; the CLI styling
+    // layer uses the same helpers. They must compile whenever EITHER front-end
+    // is enabled, so they live outside the cli-style gate below. (Previously
+    // they sat in cli_style_sources, which made `-Denable-cli-style=false` with
+    // the default TUI fail to link APP_DESIGN_PALETTE / app_text_*.)
+    const shared_ui_sources = [_][]const u8{
+        "src/ui/text_layout.c",
+        "src/style/design_tokens.c",
+    };
+
+    // CLI styling sources (cli/style renderers + color math). The terminal
     // backend is chosen at build time: terminfo when available, else ANSI.
     const cli_style_sources = [_][]const u8{
-        "src/ui/text_layout.c",
         "src/style/color_math.c",
-        "src/style/design_tokens.c",
         "src/cli/style/cli_term.c",
         "src/cli/style/cli_term_osc11.c",
         "src/cli/style/cli_theme.c",
@@ -404,6 +456,16 @@ pub fn build(b: *std.Build) void {
         .files = &base_sources,
         .flags = c_flags.items,
     });
+
+    // Compile the shared UI primitives once whenever either front-end needs
+    // them. Skipped only for a pure-CLI build with both the styling layer and
+    // the TUI disabled, where nothing references them.
+    if (enable_tui or enable_cli_style) {
+        exe.root_module.addCSourceFiles(.{
+            .files = &shared_ui_sources,
+            .flags = c_flags.items,
+        });
+    }
 
     if (enable_cli_style) {
         exe.root_module.addCSourceFiles(.{
@@ -479,6 +541,14 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            // Trap mode keeps UBSan's fail-fast checks but emits them as inline
+            // traps instead of calls into Zig's UBSan runtime. The installed
+            // archive is meant to be linked by a foreign toolchain (cc + the
+            // pkg-config flags below), which has no __ubsan_handle_* symbols, so
+            // a Debug/ReleaseSafe build with the default runtime handlers would
+            // fail to link downstream. Trap mode makes the .a self-contained at
+            // every optimize level without losing UB detection.
+            .sanitize_c = .trap,
         }),
     });
     tui_menu_lib.root_module.addIncludePath(b.path("src"));
@@ -487,9 +557,13 @@ pub fn build(b: *std.Build) void {
             "src/core/error.c",
             "src/utils/logging.c",
             "src/io/terminal.c",
-            // Shared design palette: tui.c seeds its truecolor entries from
-            // APP_DESIGN_PALETTE, so the token definition must be linked in.
+            // Shared UI primitives the TUI links against: tui.c seeds its
+            // truecolor entries from APP_DESIGN_PALETTE (design_tokens.c) and
+            // lays out menu rows with app_text_* (text_layout.c). Both
+            // definitions must be archived or a consumer of libtui-menu.a fails
+            // to link app_text_truncate_utf8_columns / app_text_wrap_utf8.
             "src/style/design_tokens.c",
+            "src/ui/text_layout.c",
             "src/tui/tui.c",
             "src/tui/tui_menu.c",
             "src/tui/tui_menu_adapter.c",
@@ -508,8 +582,32 @@ pub fn build(b: *std.Build) void {
         b.addInstallFile(b.path("src/tui/tui_menu.h"), "include/c23-cli-template/tui/tui_menu.h"),
         b.addInstallFile(b.path("src/tui/tui_progress.h"), "include/c23-cli-template/tui/tui_progress.h"),
     };
+
+    // pkg-config manifest so a consumer can `pkg-config --cflags --libs
+    // tui-menu` (use --static to pull in -lncursesw for static linking). The
+    // prefix is baked from the install prefix at configure time, mirroring how
+    // CMake/autotools generate .pc files. Version tracks TUI_MENU_VERSION in
+    // src/tui/tui_menu.h — keep the two in sync when bumping the seam.
+    const menu_version = "1.0.0";
+    const pc_contents = b.fmt(
+        \\prefix={s}
+        \\includedir=${{prefix}}/include
+        \\libdir=${{prefix}}/lib
+        \\
+        \\Name: tui-menu
+        \\Description: Reusable ncurses menu primitive from the C23 CLI template
+        \\Version: {s}
+        \\Cflags: -I${{includedir}}
+        \\Libs: -L${{libdir}} -ltui-menu
+        \\Libs.private: -lncursesw
+        \\
+    , .{ b.install_prefix, menu_version });
+    const pc_file = b.addWriteFiles().add("tui-menu.pc", pc_contents);
+    const install_pc = b.addInstallFile(pc_file, "lib/pkgconfig/tui-menu.pc");
+
     const tui_menu_lib_step = b.step("tui-menu-lib", "Build and install the reusable TUI menu static library");
     tui_menu_lib_step.dependOn(&install_tui_menu_lib.step);
+    tui_menu_lib_step.dependOn(&install_pc.step);
     for (install_tui_headers) |install_header| {
         tui_menu_lib_step.dependOn(&install_header.step);
     }
@@ -574,21 +672,12 @@ pub fn build(b: *std.Build) void {
             "test/unit_cli_style_tests.c",
             "test/unit_cli_osc11_tests.c",
             "test/unit_shared_primitives_tests.c",
-            "src/core/error.c",
-            "src/core/app_info.c",
-            "src/core/diagnostics.c",
-            "src/core/config.c",
-            "src/core/config_json.c",
-            "src/core/json_scan.c",
-            "src/core/request_json.c",
-            "src/io/input.c",
-            "src/io/terminal.c",
-            "src/cli/option_meta.c",
+            // The unconditional core TUs (error/app_info/diagnostics/config/
+            // config_json/json_scan/request_json/input/terminal/option_meta/
+            // colors/memory/logging) are linked from the app-core static library
+            // below instead of compiled here a second time.
             "src/tui/tui_menu_adapter.c",
             "src/tui/tui_menu_model.c",
-            "src/utils/colors.c",
-            "src/utils/memory.c",
-            "src/utils/logging.c",
             // CLI styling layer (ANSI backend: no ncurses link needed).
             "src/ui/text_layout.c",
             "src/style/color_math.c",
@@ -603,6 +692,8 @@ pub fn build(b: *std.Build) void {
         },
         .flags = c_flags.items,
     });
+    // Share the compiled core TUs with the exe (compiled once into app-core).
+    unit_exe.root_module.linkLibrary(core_lib);
     const unit_cmd = b.addRunArtifact(unit_exe);
     const unit_step = b.step("unit-test", "Run in-process unit tests");
     unit_step.dependOn(&unit_cmd.step);

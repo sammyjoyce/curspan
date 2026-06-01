@@ -12,6 +12,12 @@
 #include "../core/config.h"
 #include "../core/error.h"
 
+// Element count of a fixed-size array. Use only on real arrays, never on
+// pointers (a decayed array silently yields the wrong answer).
+#ifndef APP_COUNTOF
+#define APP_COUNTOF(arr) (sizeof(arr) / sizeof((arr)[0]))
+#endif
+
 #define APP_ARG_ARITY_UNBOUNDED (-1)
 
 // Handlers only read the argv vector (they never reorder or rewrite entries),
