@@ -150,7 +150,7 @@ build reaches ~49 KB under `ReleaseSmall`.
 | `zig build test` | CLI contract tests plus in-process unit tests |
 | `zig build unit-test` | Only the in-process unit tests |
 | `zig build terminal-test` | Unit and CLI tests plus PTY/TUI scenarios when TUI + backend are available |
-| `zig build tui-menu-lib` | Build the reusable TUI menu static library and install its headers |
+| `zig build tui-menu-lib` | Build the reusable TUI menu static library and install its headers + `pkgconfig/tui-menu.pc` |
 | `zig build fmt` / `fmt-check` | Format, or check formatting of, `build.zig`, `src`, and `test` |
 | `zig build check` | Baseline gate: `fmt-check` + tests (what CI runs) |
 | `zig build clean` | Remove `zig-out` and `.zig-cache` |

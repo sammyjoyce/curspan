@@ -541,6 +541,14 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            // Trap mode keeps UBSan's fail-fast checks but emits them as inline
+            // traps instead of calls into Zig's UBSan runtime. The installed
+            // archive is meant to be linked by a foreign toolchain (cc + the
+            // pkg-config flags below), which has no __ubsan_handle_* symbols, so
+            // a Debug/ReleaseSafe build with the default runtime handlers would
+            // fail to link downstream. Trap mode makes the .a self-contained at
+            // every optimize level without losing UB detection.
+            .sanitize_c = .trap,
         }),
     });
     tui_menu_lib.root_module.addIncludePath(b.path("src"));
@@ -574,8 +582,32 @@ pub fn build(b: *std.Build) void {
         b.addInstallFile(b.path("src/tui/tui_menu.h"), "include/c23-cli-template/tui/tui_menu.h"),
         b.addInstallFile(b.path("src/tui/tui_progress.h"), "include/c23-cli-template/tui/tui_progress.h"),
     };
+
+    // pkg-config manifest so a consumer can `pkg-config --cflags --libs
+    // tui-menu` (use --static to pull in -lncursesw for static linking). The
+    // prefix is baked from the install prefix at configure time, mirroring how
+    // CMake/autotools generate .pc files. Version tracks TUI_MENU_VERSION in
+    // src/tui/tui_menu.h — keep the two in sync when bumping the seam.
+    const menu_version = "1.0.0";
+    const pc_contents = b.fmt(
+        \\prefix={s}
+        \\includedir=${{prefix}}/include
+        \\libdir=${{prefix}}/lib
+        \\
+        \\Name: tui-menu
+        \\Description: Reusable ncurses menu primitive from the C23 CLI template
+        \\Version: {s}
+        \\Cflags: -I${{includedir}}
+        \\Libs: -L${{libdir}} -ltui-menu
+        \\Libs.private: -lncursesw
+        \\
+    , .{ b.install_prefix, menu_version });
+    const pc_file = b.addWriteFiles().add("tui-menu.pc", pc_contents);
+    const install_pc = b.addInstallFile(pc_file, "lib/pkgconfig/tui-menu.pc");
+
     const tui_menu_lib_step = b.step("tui-menu-lib", "Build and install the reusable TUI menu static library");
     tui_menu_lib_step.dependOn(&install_tui_menu_lib.step);
+    tui_menu_lib_step.dependOn(&install_pc.step);
     for (install_tui_headers) |install_header| {
         tui_menu_lib_step.dependOn(&install_header.step);
     }
