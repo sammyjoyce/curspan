@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../utils/colors.h"
 #include "cli_term_internal.h"
 
 void app_cli_backend_probe(app_cli_term_t *term) {
@@ -30,7 +31,9 @@ void app_cli_backend_probe(app_cli_term_t *term) {
       colors = 16;
     }
   }
-  if (colors == 0 && getenv("FORCE_COLOR")) {
+  // A force-on env with no TERM color hint still needs a usable color count so
+  // a profile resolves; FORCE_COLOR=0 must not enable color here.
+  if (colors == 0 && app_color_env_force() == APP_COLOR_FORCE_ON) {
     colors = 16;
   }
   term->color_count = colors;

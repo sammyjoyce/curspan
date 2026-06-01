@@ -80,7 +80,10 @@ request shape is:
 
 Only `command` is required. `args` defaults to an empty array. `flags` uses the
 same JSON keys as config files and currently accepts booleans only. Unknown flag
-names are rejected.
+names are rejected. String values accept RFC 8259 escapes, including `\uXXXX`
+(with UTF-16 surrogate pairs), and are decoded to UTF-8; an escaped NUL
+(`\u0000`) is rejected because it cannot be represented in the C-string
+arguments.
 
 Responses are whatever the dispatched command writes in JSON mode and therefore
 include the same `format_version` convention as `--json` command output. Parse

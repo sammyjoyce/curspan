@@ -5,25 +5,34 @@
 size_t app_actions_from_commands(app_action_item_t *out, size_t out_count) {
   size_t command_count = 0;
   const app_command_t *commands = app_commands(&command_count);
-  if (!out || out_count == 0) {
-    return command_count;
-  }
 
-  const size_t n = command_count < out_count ? command_count : out_count;
-  for (size_t i = 0; i < n; i++) {
+  // Skip hidden commands during projection so the TUI Commands list stays in
+  // sync with `--help`, and number the survivors contiguously so the caller's
+  // actions[id - 1] indexing stays valid.
+  size_t written = 0;
+  for (size_t i = 0; i < command_count; i++) {
     const app_command_t *command = &commands[i];
-    unsigned capabilities = APP_ACTION_CAP_NONE;
-    if (command->requires_terminal) {
-      capabilities |= APP_ACTION_CAP_INTERACTIVE_TERMINAL;
-      capabilities |= APP_ACTION_CAP_TUI;
+    if (command->hidden_from_help) {
+      continue;
     }
-    out[i] = (app_action_item_t){.id = (int)i + 1,
-                                 .kind = APP_ACTION_COMMAND,
-                                 .label = command->name,
-                                 .description = command->summary,
-                                 .disabled = false,
-                                 .command_name = command->name,
-                                 .capabilities = capabilities};
+    if (out && written < out_count) {
+      unsigned capabilities = APP_ACTION_CAP_NONE;
+      if (command->requires_terminal) {
+        capabilities |= APP_ACTION_CAP_INTERACTIVE_TERMINAL;
+        capabilities |= APP_ACTION_CAP_TUI;
+      }
+      out[written] =
+          (app_action_item_t){.id = (int)written + 1,
+                              .kind = APP_ACTION_COMMAND,
+                              .label = command->name,
+                              .description = command->summary,
+                              .disabled = false,
+                              .command_name = command->name,
+                              .capabilities = capabilities,
+                              .examples = command->examples,
+                              .example_count = command->example_count};
+    }
+    written++;
   }
-  return command_count;
+  return written;
 }

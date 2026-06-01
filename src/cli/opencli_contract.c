@@ -22,6 +22,11 @@ static const app_opencli_metadata_field_t environment_fields[] = {
      .description =
          "Set logging verbosity: ERROR, WARNING, INFO, DEBUG (default: ERROR)"},
     {.name = "NO_COLOR", .description = "Disable colored output when set"},
+    {.name = "FORCE_COLOR",
+     .description = "Force colored output on; set 0 (or false) to force off"},
+    {.name = "CLICOLOR_FORCE",
+     .description = "Set to a non-zero value to force colored output on"},
+    {.name = "CLICOLOR", .description = "Set 0 to disable colored output"},
     {.name = "APP_CLI_THEME",
      .description = "CLI theme: auto (detect), dark, or light"},
     {.name = "APP_CLI_COLOR",

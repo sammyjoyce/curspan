@@ -32,6 +32,121 @@ static app_error app_request_grow_string(char **buffer, size_t *capacity) {
   return APP_SUCCESS;
 }
 
+// Decode a single hex digit, or -1 when the byte is not [0-9A-Fa-f].
+static int app_request_hex_digit(unsigned char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
+// Read exactly four hex digits at *p into *out, advancing *p past them. Stops
+// (and fails) at the first non-hex byte, including the NUL terminator, so it
+// never reads past end of input.
+static app_error app_request_read_hex4(const char **p, unsigned int *out) {
+  unsigned int value = 0;
+  for (int i = 0; i < 4; i++) {
+    const int digit = app_request_hex_digit((unsigned char)(*p)[i]);
+    if (digit < 0) {
+      return APP_ERROR_CONFIG_PARSE;
+    }
+    value = (value << 4) | (unsigned int)digit;
+  }
+  *p += 4;
+  *out = value;
+  return APP_SUCCESS;
+}
+
+// Decode a \uXXXX escape (the cursor sits just past the 'u') into a Unicode
+// scalar value, combining a UTF-16 surrogate pair when present. Lone or
+// inverted surrogates are rejected as malformed, matching RFC 8259.
+static app_error app_request_decode_unicode_escape(const char **cursor,
+                                                   unsigned int *out_cp) {
+  const char *p = *cursor;
+  unsigned int unit = 0;
+  app_error err = app_request_read_hex4(&p, &unit);
+  if (err != APP_SUCCESS) {
+    return err;
+  }
+
+  if (unit >= 0xD800u && unit <= 0xDBFFu) {
+    // High surrogate: must be followed by a \uDC00-\uDFFF low surrogate.
+    if (p[0] != '\\' || p[1] != 'u') {
+      return APP_ERROR_CONFIG_PARSE;
+    }
+    p += 2;
+    unsigned int low = 0;
+    err = app_request_read_hex4(&p, &low);
+    if (err != APP_SUCCESS) {
+      return err;
+    }
+    if (low < 0xDC00u || low > 0xDFFFu) {
+      return APP_ERROR_CONFIG_PARSE;
+    }
+    *out_cp = 0x10000u + ((unit - 0xD800u) << 10) + (low - 0xDC00u);
+  } else if (unit >= 0xDC00u && unit <= 0xDFFFu) {
+    return APP_ERROR_CONFIG_PARSE;  // lone low surrogate
+  } else {
+    *out_cp = unit;
+  }
+
+  // Reject an escaped NUL: args are NUL-terminated C strings, so emitting a
+  // 0x00 byte would silently truncate the value. This mirrors the rejection of
+  // an unescaped control byte (ch < 0x20) in the string scanner above. Other
+  // escaped controls (e.g. 	) remain valid and decode to their byte.
+  if (*out_cp == 0u) {
+    return APP_ERROR_CONFIG_PARSE;
+  }
+
+  *cursor = p;
+  return APP_SUCCESS;
+}
+
+// UTF-8-encode a scalar value into the growing string buffer, growing it byte
+// by byte through the same path string accumulation uses so the trailing NUL
+// always fits.
+static app_error app_request_emit_utf8(char **buffer, size_t *capacity,
+                                       size_t *used, unsigned int cp) {
+  unsigned char bytes[4];
+  size_t count;
+  if (cp <= 0x7Fu) {
+    bytes[0] = (unsigned char)cp;
+    count = 1;
+  } else if (cp <= 0x7FFu) {
+    bytes[0] = (unsigned char)(0xC0u | (cp >> 6));
+    bytes[1] = (unsigned char)(0x80u | (cp & 0x3Fu));
+    count = 2;
+  } else if (cp <= 0xFFFFu) {
+    bytes[0] = (unsigned char)(0xE0u | (cp >> 12));
+    bytes[1] = (unsigned char)(0x80u | ((cp >> 6) & 0x3Fu));
+    bytes[2] = (unsigned char)(0x80u | (cp & 0x3Fu));
+    count = 3;
+  } else {
+    bytes[0] = (unsigned char)(0xF0u | (cp >> 18));
+    bytes[1] = (unsigned char)(0x80u | ((cp >> 12) & 0x3Fu));
+    bytes[2] = (unsigned char)(0x80u | ((cp >> 6) & 0x3Fu));
+    bytes[3] = (unsigned char)(0x80u | (cp & 0x3Fu));
+    count = 4;
+  }
+
+  for (size_t i = 0; i < count; i++) {
+    if (*used + 1U >= *capacity) {
+      const app_error err = app_request_grow_string(buffer, capacity);
+      if (err != APP_SUCCESS) {
+        return err;
+      }
+    }
+    (*buffer)[(*used)++] = (char)bytes[i];
+  }
+  return APP_SUCCESS;
+}
+
 static app_error app_request_parse_json_string_alloc(const char **cursor,
                                                      char **out) {
   if (!cursor || !*cursor || !out) {
@@ -87,9 +202,25 @@ static app_error app_request_parse_json_string_alloc(const char **cursor,
       case 't':
         ch = '\t';
         break;
-      case 'u':
-        free(buffer);
-        return APP_ERROR_CONFIG_PARSE;
+      case 'u': {
+        // \uXXXX is how standard serializers (jq, JSON.stringify, Python's
+        // json.dumps with ensure_ascii) emit non-ASCII and control characters,
+        // so the headless machine surface must accept it. Decode the scalar
+        // value (combining surrogate pairs) and emit its UTF-8 bytes directly,
+        // bypassing the single-byte append below.
+        unsigned int code_point = 0;
+        app_error uerr = app_request_decode_unicode_escape(&p, &code_point);
+        if (uerr != APP_SUCCESS) {
+          free(buffer);
+          return uerr;
+        }
+        uerr = app_request_emit_utf8(&buffer, &capacity, &used, code_point);
+        if (uerr != APP_SUCCESS) {
+          free(buffer);
+          return uerr;
+        }
+        continue;
+      }
       default:
         free(buffer);
         return APP_ERROR_CONFIG_PARSE;

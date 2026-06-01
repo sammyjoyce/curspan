@@ -28,6 +28,17 @@ typedef struct {
   bool disabled;
   const char *command_name;
   unsigned capabilities;
+  // Borrowed, NUL-terminated example invocation strings (and their count) from
+  // the source command table, so a TUI detail view can show the same
+  // ready-to-run examples the CLI `--help` prints. NULL when the action carries
+  // no examples. The pointers are owned by the static command table.
+  const char *const *examples;
+  size_t example_count;
 } app_action_item_t;
 
+// Project the CLI command table into action descriptors. Commands flagged
+// hidden_from_help are skipped so the TUI Commands list matches `--help`, and
+// the written descriptors are assigned contiguous ids (1..N) matching their
+// slot in `out`. Returns the number of visible commands (independent of
+// out_count), so a NULL/zero-capacity call probes the count.
 size_t app_actions_from_commands(app_action_item_t *out, size_t out_count);

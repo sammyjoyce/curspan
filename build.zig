@@ -678,6 +678,11 @@ pub fn build(b: *std.Build) void {
             // below instead of compiled here a second time.
             "src/tui/tui_menu_adapter.c",
             "src/tui/tui_menu_model.c",
+            // The CLI->action projection. Its only external dependency is
+            // app_commands(), which the shared-primitives test stubs with a
+            // controlled table so the hidden-skip/example-carry logic is tested
+            // in isolation from the full command subtree.
+            "src/ui/action_item.c",
             // CLI styling layer (ANSI backend: no ncurses link needed).
             "src/ui/text_layout.c",
             "src/style/color_math.c",

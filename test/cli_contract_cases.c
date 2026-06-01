@@ -183,6 +183,21 @@ static bool test_plain_mode_disables_forced_color(test_context_t *ctx) {
   return ok;
 }
 
+static bool test_force_color_zero_disables_color(test_context_t *ctx) {
+  // FORCE_COLOR=0 is the de-facto "force color off" signal; it must disable
+  // color rather than (as the old getenv != NULL check did) enable it.
+  const char *args[] = {"doctor"};
+  const env_var_t env[] = {{"FORCE_COLOR", "0"}};
+  command_result_t result =
+      cc_run_cli(ctx, args, ARRAY_LEN(args), env, ARRAY_LEN(env));
+  const bool ok =
+      cc_expect_exit(&result, 0) &&
+      cc_expect_stdout_contains(&result, "color_output") &&
+      cc_expect_stdout_contains(&result, "disabled for this output");
+  cc_command_result_free(&result);
+  return ok;
+}
+
 static bool test_command_arguments_are_not_global_config_flags(
     test_context_t *ctx) {
   const char *args[] = {"--plain", "echo", "-c",
@@ -276,9 +291,11 @@ static bool test_verbose_mode_emits_diagnostics_on_stderr(test_context_t *ctx) {
 
 static bool test_invalid_env_config_fails_without_partial_settings(
     test_context_t *ctx) {
+  // A known flag (quiet) is staged before a malformed sibling value (debug must
+  // be boolean) forces the whole load to fail. The staged flag must not leak:
+  // the load aborts atomically rather than applying quiet partially.
   char *config_path = NULL;
-  if (!cc_write_temp_config("{\"quiet\":true,\"ignored\":{\"nested\":true}}",
-                            &config_path)) {
+  if (!cc_write_temp_config("{\"quiet\":true,\"debug\":42}", &config_path)) {
     fprintf(stderr, "failed to write temporary config\n");
     return false;
   }
@@ -290,6 +307,26 @@ static bool test_invalid_env_config_fails_without_partial_settings(
   const bool ok = cc_expect_not_exit(&result, 0) &&
                   cc_expect_stderr_contains(&result, "failed to load config") &&
                   cc_expect_stdout_empty(&result);
+  cc_command_result_free(&result);
+  (void)unlink(config_path);
+  free(config_path);
+  return ok;
+}
+
+static bool test_valid_config_skips_nested_unknown_keys(test_context_t *ctx) {
+  // A forward-compatible config may carry unknown keys whose values are nested
+  // objects/arrays. The loader skips them and still applies the known sibling
+  // flag (quiet here), so hello succeeds with suppressed output.
+  char *config_path = NULL;
+  if (!cc_write_temp_config(
+          "{\"ignored\":{\"a\":[1,{\"b\":2}]},\"quiet\":true}", &config_path)) {
+    fprintf(stderr, "failed to write temporary config\n");
+    return false;
+  }
+
+  const char *args[] = {"--config", config_path, "hello"};
+  command_result_t result = cc_run_cli(ctx, args, ARRAY_LEN(args), NULL, 0);
+  const bool ok = cc_expect_exit(&result, 0) && cc_expect_stdout_empty(&result);
   cc_command_result_free(&result);
   (void)unlink(config_path);
   free(config_path);
@@ -321,6 +358,49 @@ static bool test_unknown_command_reports_actionable_error(test_context_t *ctx) {
       cc_expect_not_exit(&result, 0) &&
       cc_expect_stderr_contains(&result, "Unknown command: not-a-command") &&
       cc_expect_stderr_contains(&result, "--help");
+  cc_command_result_free(&result);
+  return ok;
+}
+
+static bool test_unknown_command_suggests_closest(test_context_t *ctx) {
+  const char *args[] = {"helo"};
+  command_result_t result = cc_run_cli(ctx, args, ARRAY_LEN(args), NULL, 0);
+  const bool ok = cc_expect_not_exit(&result, 0) &&
+                  cc_expect_stderr_contains(&result, "Unknown command: helo") &&
+                  cc_expect_stderr_contains(&result, "Did you mean 'hello'?");
+  cc_command_result_free(&result);
+  return ok;
+}
+
+static bool test_unknown_command_far_token_has_no_suggestion(
+    test_context_t *ctx) {
+  const char *args[] = {"zzzzzz"};
+  command_result_t result = cc_run_cli(ctx, args, ARRAY_LEN(args), NULL, 0);
+  const bool no_hint =
+      !result.err || strstr(result.err, "Did you mean") == NULL;
+  const bool ok =
+      cc_expect_not_exit(&result, 0) &&
+      cc_expect_stderr_contains(&result, "Unknown command: zzzzzz") && no_hint;
+  if (!no_hint) {
+    fprintf(stderr, "expected no suggestion for a far-off token\n");
+  }
+  cc_command_result_free(&result);
+  return ok;
+}
+
+static bool test_unknown_command_does_not_suggest_hidden(test_context_t *ctx) {
+  // "men" is one edit from the hidden `menu` command and far from every visible
+  // command, so no suggestion should appear: hidden commands are never offered.
+  const char *args[] = {"men"};
+  command_result_t result = cc_run_cli(ctx, args, ARRAY_LEN(args), NULL, 0);
+  const bool no_hint =
+      !result.err || strstr(result.err, "Did you mean") == NULL;
+  const bool ok = cc_expect_not_exit(&result, 0) &&
+                  cc_expect_stderr_contains(&result, "Unknown command: men") &&
+                  no_hint;
+  if (!no_hint) {
+    fprintf(stderr, "expected hidden command 'menu' to never be suggested\n");
+  }
   cc_command_result_free(&result);
   return ok;
 }
@@ -428,6 +508,7 @@ const test_case_t cli_contract_cases[] = {
     {"doctor --deep exercises runtime probe",
      test_doctor_deep_option_exercises_runtime_probe},
     {"plain mode disables forced color", test_plain_mode_disables_forced_color},
+    {"force color zero disables color", test_force_color_zero_disables_color},
     {"command arguments are not global config flags",
      test_command_arguments_are_not_global_config_flags},
     {"command metadata is enforced", test_command_metadata_is_enforced},
@@ -439,8 +520,16 @@ const test_case_t cli_contract_cases[] = {
      test_invalid_env_config_fails_without_partial_settings},
     {"valid flat config skips unknown scalar keys",
      test_valid_flat_config_skips_unknown_scalar_keys},
+    {"valid config skips nested unknown keys",
+     test_valid_config_skips_nested_unknown_keys},
     {"unknown command reports actionable error",
      test_unknown_command_reports_actionable_error},
+    {"unknown command suggests the closest match",
+     test_unknown_command_suggests_closest},
+    {"unknown command far token has no suggestion",
+     test_unknown_command_far_token_has_no_suggestion},
+    {"unknown command does not suggest hidden commands",
+     test_unknown_command_does_not_suggest_hidden},
     {"terminal commands require a tty", test_terminal_command_requires_tty},
     {"headless json request dispatches command",
      test_headless_json_request_dispatches_command},

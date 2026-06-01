@@ -5,6 +5,7 @@
 #include "commands.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -221,6 +222,70 @@ const app_command_t *app_command_find(const char *name) {
     if (strcmp(g_app_commands[i].name, name) == 0) {
       return &g_app_commands[i];
     }
+  }
+  return NULL;
+}
+
+// Levenshtein edit distance between a and b. Bounded to short inputs (a real
+// typo is short): anything longer is treated as far away so the suggestion gate
+// rejects it. Command names are tiny, so the row buffers are small.
+#define APP_SUGGEST_MAX_LEN 64
+
+static size_t app_command_edit_distance(const char *a, const char *b) {
+  const size_t la = strlen(a);
+  const size_t lb = strlen(b);
+  if (la > APP_SUGGEST_MAX_LEN || lb > APP_SUGGEST_MAX_LEN) {
+    return SIZE_MAX;
+  }
+
+  size_t prev[APP_SUGGEST_MAX_LEN + 1];
+  size_t curr[APP_SUGGEST_MAX_LEN + 1];
+  for (size_t j = 0; j <= lb; j++) {
+    prev[j] = j;
+  }
+  for (size_t i = 1; i <= la; i++) {
+    curr[0] = i;
+    for (size_t j = 1; j <= lb; j++) {
+      const size_t cost = a[i - 1] == b[j - 1] ? 0U : 1U;
+      const size_t deletion = prev[j] + 1U;
+      const size_t insertion = curr[j - 1] + 1U;
+      const size_t substitution = prev[j - 1] + cost;
+      size_t best = deletion < insertion ? deletion : insertion;
+      best = best < substitution ? best : substitution;
+      curr[j] = best;
+    }
+    for (size_t j = 0; j <= lb; j++) {
+      prev[j] = curr[j];
+    }
+  }
+  return prev[lb];
+}
+
+const char *app_command_suggest(const char *unknown) {
+  if (!unknown || unknown[0] == '\0') {
+    return NULL;
+  }
+  const size_t unknown_len = strlen(unknown);
+
+  const char *best = NULL;
+  size_t best_distance = SIZE_MAX;
+  for (size_t i = 0; i < G_APP_COMMANDS_COUNT; i++) {
+    const app_command_t *command = &g_app_commands[i];
+    if (command->hidden_from_help) {
+      continue;  // never steer users toward an internal command
+    }
+    const size_t distance = app_command_edit_distance(unknown, command->name);
+    if (distance < best_distance) {
+      best_distance = distance;
+      best = command->name;
+    }
+  }
+
+  // Conservative gate: only a clearly-close match (within two edits AND under
+  // half the typed length) suggests. Short, ambiguous tokens and far-off words
+  // produce no hint rather than a misleading one.
+  if (best && best_distance <= 2U && best_distance * 2U < unknown_len) {
+    return best;
   }
   return NULL;
 }
