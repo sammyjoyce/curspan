@@ -134,7 +134,12 @@ Measured `ReleaseSafe` sizes (x86-64 Linux):
 | `-Denable-tui=false -Denable-cli-style=false -Dstrip=true` | ~68 KB | libc only |
 
 Disabling both front-ends drops the curses dependency entirely, leaving a
-libc-only binary for headless/JSON deployments.
+libc-only binary for headless/JSON deployments. `just footprint-check` (and a
+CI step) guards that the libc-only build never regains a curses dependency.
+
+For the absolute minimum, `-Doptimize=ReleaseSmall` trims further at the cost of
+some speed: stripped default ~102 KB / `ReleaseFast` ~115 KB, and the libc-only
+build reaches ~49 KB under `ReleaseSmall`.
 
 ## Build steps
 
@@ -177,6 +182,41 @@ libc-only binary for headless/JSON deployments.
    on the include path. If a TUI-only file references a shared primitive (text
    layout or the design palette), that primitive is already in
    `shared_ui_sources`, so it links in every front-end combination.
+
+## Adding a package dependency
+
+`build.zig.zon` starts with `.dependencies = .{}`. To vendor a C library (or
+another Zig package) reproducibly:
+
+1. Fetch and pin it. `zig fetch` records the URL and a content hash in
+   `build.zig.zon` so builds are hermetic:
+
+   ```bash
+   zig fetch --save=cjson https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.tar.gz
+   ```
+
+   This adds a `.cjson = .{ .url = ..., .hash = ... }` entry under
+   `.dependencies`.
+
+2. Wire it into a target in `build.zig`. Resolve the dependency, then either add
+   its C sources to a module or link a library it builds:
+
+   ```zig
+   const cjson = b.dependency("cjson", .{ .target = target, .optimize = optimize });
+   exe.root_module.addIncludePath(cjson.path("."));
+   exe.root_module.addCSourceFiles(.{
+       .files = &.{"cJSON.c"},
+       .flags = c_flags.items,
+       .root = cjson.path("."),
+   });
+   ```
+
+3. `zig build` fetches the pinned archive into the global cache on first use; the
+   hash in `build.zig.zon` makes the dependency tamper-evident. Commit the
+   updated `build.zig.zon` so collaborators and CI resolve the same revision.
+
+Keep dependencies pinned by hash (never a moving branch) and prefer adding their
+sources to a dedicated module so your `c_flags` and warning policy still apply.
 
 ## Cross-compiling
 

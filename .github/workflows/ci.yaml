@@ -226,6 +226,29 @@ jobs:
         timeout-minutes: 15
         shell: bash
 
+      - name: Minimal-footprint guard
+        # The no-TUI, no-CLI-style build must stay libc-only and small. Catches
+        # regressions that accidentally pull a curses TU into the minimal build
+        # (e.g. an over-broad shared library). Linux/ELF only.
+        if: runner.os == 'Linux'
+        run: |
+          zig build -Doptimize=ReleaseSafe -Denable-tui=false -Denable-cli-style=false -Dstrip=true
+          bin="zig-out/bin/$BINARY_NAME"
+          if readelf -d "$bin" 2>/dev/null | grep -qiE 'ncurses|curses|tinfo'; then
+            echo "FAIL: minimal build links a curses library"
+            readelf -d "$bin" | grep -i needed
+            exit 1
+          fi
+          size=$(stat -c%s "$bin")
+          limit=98304
+          if [ "$size" -gt "$limit" ]; then
+            echo "FAIL: minimal binary ${size} B exceeds ${limit} B"
+            exit 1
+          fi
+          echo "OK: minimal libc-only build is ${size} B (limit ${limit} B), no curses NEEDED"
+        timeout-minutes: 10
+        shell: bash
+
       - name: Upload artifacts
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
         with:
