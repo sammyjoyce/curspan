@@ -8,6 +8,7 @@
 
 #include "config.h"
 
+#include <errno.h>
 #include <limits.h>
 
 #include "config_json.h"
@@ -264,8 +265,19 @@ app_error app_config_load_file(app_config_t *const config, const char *path) {
 
   FILE *f = fopen(config_path, "rb");
   if (!f) {
+    // Capture errno before any other call can clobber it, then map the cause to
+    // a specific public exit code so a CI wrapper can tell "wrong path" from
+    // "unreadable" from a genuine I/O fault (all three previously collapsed to
+    // APP_ERROR_IO).
+    const int open_errno = errno;
     LOG_WARNING("Failed to open config file: %s", config_path);
     free(config_path);
+    if (open_errno == ENOENT || open_errno == ENOTDIR) {
+      return APP_ERROR_NOT_FOUND;
+    }
+    if (open_errno == EACCES || open_errno == EPERM) {
+      return APP_ERROR_PERMISSION;
+    }
     return APP_ERROR_IO;
   }
 

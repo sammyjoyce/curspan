@@ -104,6 +104,11 @@ const app_global_value_option_t *app_global_value_option_find(const char *arg);
 // Look up a command by name. Returns NULL when no command matches.
 const app_command_t *app_command_find(const char *name);
 
+// Suggest the closest visible command name to an unknown token (bounded edit
+// distance), or NULL when nothing is close enough. Hidden commands are never
+// suggested, so a typo near an internal command yields no misleading hint.
+const char *app_command_suggest(const char *unknown);
+
 // Look up a command option by CLI spelling, for example "--deep".
 const app_command_option_t *app_command_option_find(
     const app_command_t *command, const char *arg);

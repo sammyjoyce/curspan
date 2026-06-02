@@ -33,3 +33,23 @@ typedef struct app_config app_config_t;
 // dumb terminals. This multi-layer check ensures colors only appear when
 // helpful.
 bool app_use_colors(const app_config_t *config);
+
+// Tri-state outcome of the color-forcing environment variables.
+typedef enum {
+  APP_COLOR_FORCE_AUTO = 0,  // no override; fall back to TTY detection
+  APP_COLOR_FORCE_ON,        // force color on, even off a TTY
+  APP_COLOR_FORCE_OFF,       // force color off (a hard disable, like NO_COLOR)
+} app_color_force_t;
+
+// Resolve FORCE_COLOR / CLICOLOR_FORCE / CLICOLOR into a single tri-state,
+// following the widely-adopted conventions (chalk's FORCE_COLOR and the
+// bixense CLICOLOR spec):
+//   - FORCE_COLOR=0 or =false  -> OFF   (explicit disable, wins like NO_COLOR)
+//   - FORCE_COLOR set otherwise -> ON   (including empty, 1, 2, 3, true)
+//   - CLICOLOR_FORCE set, not 0 -> ON
+//   - CLICOLOR=0               -> OFF
+//   - none of the above        -> AUTO
+// NO_COLOR is handled separately by each caller and takes top precedence over
+// this result. FORCE_COLOR is the strongest signal here, then CLICOLOR_FORCE,
+// then CLICOLOR.
+app_color_force_t app_color_env_force(void);

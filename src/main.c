@@ -129,11 +129,22 @@ static app_error app_dispatch_configured_command(app_config_t *config,
 
   const app_command_t *entry = app_command_find(command);
   if (!entry) {
+    const char *const program_name = app_config_get_program_name(config);
+    const char *const suggestion = app_command_suggest(command);
 #ifdef APP_ENABLE_CLI_STYLE
     if (!app_config_is_json_output(config)) {
-      app_cli_render_error_code(
-          config, stderr, app_config_get_program_name(config),
-          APP_ERROR_INVALID_COMMAND, command, APP_CLI_ERROR_KIND_USAGE);
+      // Fold any suggestion into the styled error's detail so the "Did you
+      // mean" hint shares the single ERROR block.
+      char detail[256];
+      if (suggestion) {
+        snprintf(detail, sizeof(detail), "%s. Did you mean '%s'?", command,
+                 suggestion);
+      } else {
+        snprintf(detail, sizeof(detail), "%s", command);
+      }
+      app_cli_render_error_code(config, stderr, program_name,
+                                APP_ERROR_INVALID_COMMAND, detail,
+                                APP_CLI_ERROR_KIND_USAGE);
       return APP_ERROR_INVALID_COMMAND;
     }
 #endif
@@ -141,10 +152,17 @@ static app_error app_dispatch_configured_command(app_config_t *config,
     // --json/headless mode. (With APP_ENABLE_CLI_STYLE the styled human path
     // returned above; without it this also serves human output, where the
     // combined line reads fine.)
-    app_output_format(config, true,
-                      "Unknown command: %s. Run '%s --help' for available "
-                      "commands",
-                      command, app_config_get_program_name(config));
+    if (suggestion) {
+      app_output_format(config, true,
+                        "Unknown command: %s. Did you mean '%s'? Run '%s "
+                        "--help' for available commands",
+                        command, suggestion, program_name);
+    } else {
+      app_output_format(config, true,
+                        "Unknown command: %s. Run '%s --help' for available "
+                        "commands",
+                        command, program_name);
+    }
     return APP_ERROR_INVALID_COMMAND;
   }
 

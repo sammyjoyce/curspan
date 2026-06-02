@@ -24,6 +24,29 @@ static bool app_stderr_is_terminal(void) {
 #endif
 }
 
+app_color_force_t app_color_env_force(void) {
+  const char *force_color = getenv("FORCE_COLOR");
+  if (force_color) {
+    if (strcmp(force_color, "0") == 0 || strcmp(force_color, "false") == 0) {
+      return APP_COLOR_FORCE_OFF;
+    }
+    return APP_COLOR_FORCE_ON;
+  }
+
+  const char *clicolor_force = getenv("CLICOLOR_FORCE");
+  if (clicolor_force && clicolor_force[0] != '\0' &&
+      strcmp(clicolor_force, "0") != 0) {
+    return APP_COLOR_FORCE_ON;
+  }
+
+  const char *clicolor = getenv("CLICOLOR");
+  if (clicolor && strcmp(clicolor, "0") == 0) {
+    return APP_COLOR_FORCE_OFF;
+  }
+
+  return APP_COLOR_FORCE_AUTO;
+}
+
 bool app_use_colors(const app_config_t *config) {
   // Explicit plain/no-color modes take precedence over terminal heuristics.
   if (config &&
@@ -36,9 +59,15 @@ bool app_use_colors(const app_config_t *config) {
     return false;
   }
 
-  // Force color if requested
-  if (getenv("FORCE_COLOR") != NULL) {
+  // FORCE_COLOR / CLICOLOR_FORCE / CLICOLOR, parsed per the de-facto spec:
+  // FORCE_COLOR=0 disables, a force flag enables even off a TTY.
+  switch (app_color_env_force()) {
+  case APP_COLOR_FORCE_OFF:
+    return false;
+  case APP_COLOR_FORCE_ON:
     return true;
+  case APP_COLOR_FORCE_AUTO:
+    break;
   }
 
   // Check if TERM is dumb

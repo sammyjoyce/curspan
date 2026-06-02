@@ -147,6 +147,118 @@ static app_error app_config_skip_json_scalar(const char **cursor) {
   return app_json_skip_number(cursor);
 }
 
+// Bound on nested container recursion when skipping an unknown key's value.
+// Matches request_json.c so the two readers tolerate the same structures.
+#define APP_CONFIG_JSON_MAX_DEPTH 32
+
+// Skip an arbitrary JSON value under an unknown config key. Known bool keys are
+// still parsed strictly elsewhere; this path only discards values the loader
+// does not consume, so a forward-compatible config that carries extra nested
+// metadata still loads (and its known sibling flags still apply). The nesting
+// skip lives here rather than in json_scan.c by design: that shared floor owns
+// byte-level scanning, while each reader keeps its own object/array policy
+// (config skips values allocation-free and rejects \u in strings; the headless
+// reader accepts \u). See json_scan.h.
+static app_error app_config_skip_json_value(const char **cursor, int depth);
+
+static app_error app_config_skip_json_array(const char **cursor, int depth) {
+  if (depth > APP_CONFIG_JSON_MAX_DEPTH) {
+    return APP_ERROR_OUT_OF_RANGE;
+  }
+
+  const char *p = app_json_skip_ws(*cursor);
+  if (!p || *p != '[') {
+    return APP_ERROR_CONFIG_PARSE;
+  }
+  p++;
+  p = app_json_skip_ws(p);
+  if (*p == ']') {
+    *cursor = p + 1;
+    return APP_SUCCESS;
+  }
+
+  while (*p != '\0') {
+    const char *value_cursor = p;
+    app_error err = app_config_skip_json_value(&value_cursor, depth + 1);
+    if (err != APP_SUCCESS) {
+      return err;
+    }
+    p = app_json_skip_ws(value_cursor);
+    if (*p == ',') {
+      p++;
+      continue;
+    }
+    if (*p == ']') {
+      *cursor = p + 1;
+      return APP_SUCCESS;
+    }
+    return APP_ERROR_CONFIG_PARSE;
+  }
+
+  return APP_ERROR_CONFIG_PARSE;
+}
+
+static app_error app_config_skip_json_object(const char **cursor, int depth) {
+  if (depth > APP_CONFIG_JSON_MAX_DEPTH) {
+    return APP_ERROR_OUT_OF_RANGE;
+  }
+
+  const char *p = app_json_skip_ws(*cursor);
+  if (!p || *p != '{') {
+    return APP_ERROR_CONFIG_PARSE;
+  }
+  p++;
+  p = app_json_skip_ws(p);
+  if (*p == '}') {
+    *cursor = p + 1;
+    return APP_SUCCESS;
+  }
+
+  while (*p != '\0') {
+    app_error err = app_config_skip_json_string(&p);
+    if (err != APP_SUCCESS) {
+      return err;
+    }
+
+    p = app_json_skip_ws(p);
+    if (*p != ':') {
+      return APP_ERROR_CONFIG_PARSE;
+    }
+    p++;
+
+    err = app_config_skip_json_value(&p, depth + 1);
+    if (err != APP_SUCCESS) {
+      return err;
+    }
+    p = app_json_skip_ws(p);
+    if (*p == ',') {
+      p++;
+      continue;
+    }
+    if (*p == '}') {
+      *cursor = p + 1;
+      return APP_SUCCESS;
+    }
+    return APP_ERROR_CONFIG_PARSE;
+  }
+
+  return APP_ERROR_CONFIG_PARSE;
+}
+
+static app_error app_config_skip_json_value(const char **cursor, int depth) {
+  const char *p = app_json_skip_ws(*cursor);
+  if (!p) {
+    return APP_ERROR_CONFIG_PARSE;
+  }
+  if (*p == '{') {
+    return app_config_skip_json_object(cursor, depth + 1);
+  }
+  if (*p == '[') {
+    return app_config_skip_json_array(cursor, depth + 1);
+  }
+  return app_config_skip_json_scalar(cursor);
+}
+
 static bool app_config_apply_json_bool_key(app_config_json_state_t *state,
                                            const char *key, bool value) {
   const app_flag_spec_t *spec = app_flag_find_by_json_key(key);
@@ -213,7 +325,7 @@ app_error app_config_parse_json_state(app_config_json_state_t *staged,
       }
       (void)app_config_apply_json_bool_key(staged, key, value);
     } else {
-      err = app_config_skip_json_scalar(&cursor);
+      err = app_config_skip_json_value(&cursor, 0);
       if (err != APP_SUCCESS) {
         return err;
       }

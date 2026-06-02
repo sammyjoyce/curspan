@@ -3,14 +3,47 @@
  */
 #include <string.h>
 
+#include "../src/cli/commands.h"
 #include "../src/cli/option_meta.h"
 #include "../src/core/app_info.h"
 #include "../src/core/config.h"
 #include "../src/core/diagnostics.h"
 #include "../src/io/terminal.h"
 #include "../src/tui/tui_menu_adapter.h"
+#include "../src/ui/action_item.h"
 #include "../src/ui/text_layout.h"
 #include "unit_support.h"
+
+// app_actions_from_commands() reads the global command table via
+// app_commands(). The unit binary deliberately does not link the full command
+// subtree, so we provide a controlled stub here: it lets us assert the
+// projection's hidden-skip and example-carry behavior against a known table (a
+// visible command with examples, a hidden command that must be dropped, and a
+// second visible one).
+static const char *const stub_hello_examples[] = {
+    "app hello",
+    "app hello Alice",
+};
+
+static const app_command_t stub_commands[] = {
+    {.name = "hello",
+     .summary = "Print a greeting",
+     .examples = stub_hello_examples,
+     .example_count = 2,
+     .hidden_from_help = false},
+    {.name = "menu",
+     .summary = "Launch the interactive TUI main menu",
+     .requires_terminal = true,
+     .hidden_from_help = true},
+    {.name = "echo", .summary = "Echo text", .hidden_from_help = false},
+};
+
+const app_command_t *app_commands(size_t *count) {
+  if (count) {
+    *count = sizeof(stub_commands) / sizeof(stub_commands[0]);
+  }
+  return stub_commands;
+}
 
 static bool test_app_info_feature_table(void) {
   const app_build_info_t *build = app_build_info();
@@ -168,6 +201,38 @@ static bool test_tui_menu_adapter_maps_action_data(void) {
          sep.kind == TUI_MENU_ITEM_SEPARATOR;
 }
 
+static bool test_actions_from_commands_excludes_hidden(void) {
+  app_action_item_t actions[16];
+  const size_t count = app_actions_from_commands(actions, 16);
+  // The stub has three commands, one of them hidden, so exactly two survive.
+  if (count != 2) {
+    return false;
+  }
+
+  bool saw_hello = false;
+  bool saw_menu = false;
+  bool hello_has_examples = false;
+  for (size_t i = 0; i < count; i++) {
+    // ids must stay contiguous (1..count) so actions[id - 1] indexing holds.
+    if (actions[i].id != (int)i + 1) {
+      return false;
+    }
+    if (!actions[i].command_name) {
+      continue;
+    }
+    if (strcmp(actions[i].command_name, "hello") == 0) {
+      saw_hello = true;
+      hello_has_examples = actions[i].example_count == 2 &&
+                           actions[i].examples != NULL &&
+                           actions[i].examples[0] != NULL;
+    }
+    if (strcmp(actions[i].command_name, "menu") == 0) {
+      saw_menu = true;  // hidden_from_help; must never be projected
+    }
+  }
+  return saw_hello && hello_has_examples && !saw_menu;
+}
+
 static bool test_diagnostics_collects_core_checks(void) {
   app_config_t *config = NULL;
   if (app_config_create(&config) != APP_SUCCESS) {
@@ -200,6 +265,8 @@ void run_shared_primitives_unit_tests(unit_stats_t *stats) {
               "terminal query is safe off tty");
   unit_record(stats, test_tui_menu_adapter_maps_action_data(),
               "tui_menu_adapter maps action descriptors");
+  unit_record(stats, test_actions_from_commands_excludes_hidden(),
+              "action projection skips hidden commands and carries examples");
   unit_record(stats, test_diagnostics_collects_core_checks(),
               "diagnostics collector returns core checks");
 }

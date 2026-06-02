@@ -231,17 +231,53 @@ enum { APP_COMMANDS_BACK_ID = 1000 };
  * command from inside the TUI; surfacing the descriptor (name, summary, and
  * whether it needs an interactive terminal) is the safe demonstration of the
  * shared action seam. */
+// Append src to dst at *used without overflowing cap, advancing *used by the
+// number of bytes actually written. Keeps the running detail string safe even
+// when a command carries many long examples.
+static void app_detail_append(char *dst, size_t cap, size_t *used,
+                              const char *src) {
+  if (!src || *used >= cap - 1) {
+    return;
+  }
+  const int n = snprintf(dst + *used, cap - *used, "%s", src);
+  if (n < 0) {
+    return;
+  }
+  const size_t room = cap - 1 - *used;
+  *used += (size_t)n > room ? room : (size_t)n;
+}
+
 static void app_show_command_detail(const app_action_item_t *action) {
   const bool interactive =
       (action->capabilities & APP_ACTION_CAP_INTERACTIVE_TERMINAL) != 0;
   char detail[512];
-  snprintf(detail, sizeof(detail),
-           "Command: %s\n\n"
-           "%s\n\n"
-           "Requires interactive terminal: %s",
-           action->command_name ? action->command_name : action->label,
-           action->description ? action->description : "(no description)",
-           interactive ? "yes" : "no");
+  const int header =
+      snprintf(detail, sizeof(detail),
+               "Command: %s\n\n"
+               "%s\n\n"
+               "Requires interactive terminal: %s",
+               action->command_name ? action->command_name : action->label,
+               action->description ? action->description : "(no description)",
+               interactive ? "yes" : "no");
+  size_t used = header < 0 ? 0 : (size_t)header;
+  if (used >= sizeof(detail)) {
+    used = sizeof(detail) - 1;
+  }
+
+  // Surface the same ready-to-run examples the CLI `--help` prints, so the
+  // Commands browser is a real reference rather than just a name + summary.
+  if (action->examples && action->example_count > 0) {
+    app_detail_append(detail, sizeof(detail), &used, "\n\nExamples:");
+    for (size_t i = 0; i < action->example_count; i++) {
+      if (!action->examples[i]) {
+        continue;
+      }
+      char line[160];
+      snprintf(line, sizeof(line), "\n  %s", action->examples[i]);
+      app_detail_append(detail, sizeof(detail), &used, line);
+    }
+  }
+
   tui_show_message("Command Details", detail);
 }
 

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../utils/colors.h"
 #include "cli_term_internal.h"
 #include "cli_term_osc11.h"
 
@@ -95,6 +96,11 @@ static bool app_cli_hard_disabled(const app_config_t *config) {
   if (app_flag_env_enabled(APP_FLAG_NO_COLOR)) {
     return true;
   }
+  // FORCE_COLOR=0 / CLICOLOR=0 are explicit "disable color" signals; honor them
+  // as a hard disable so they win over a forced test profile, like NO_COLOR.
+  if (app_color_env_force() == APP_COLOR_FORCE_OFF) {
+    return true;
+  }
   const char *color = getenv("APP_CLI_COLOR");
   if (color && strcmp(color, "never") == 0) {
     return true;
@@ -161,7 +167,10 @@ bool app_cli_term_init(app_cli_term_t *term, FILE *stream,
     // enables emission even off a TTY so golden tests can exercise it.
     style = app_cli_parse_profile(force_profile) != APP_CLI_COLOR_PROFILE_NONE;
   } else {
-    style = getenv("FORCE_COLOR") != NULL || app_cli_fd_is_tty(term->fd);
+    // A force-on env (FORCE_COLOR / CLICOLOR_FORCE) enables emission even off a
+    // TTY; force-off was already caught by the hard-disable above.
+    style = app_color_env_force() == APP_COLOR_FORCE_ON ||
+            app_cli_fd_is_tty(term->fd);
   }
 
   if (!style) {
