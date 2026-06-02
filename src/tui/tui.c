@@ -232,16 +232,16 @@ app_error tui_init(void) {
     goto fail;
   }
 
-  // With keypad() on, a bare ESC byte is held back for ESCDELAY ms to
+  // With keypad() on, ncurses holds back a bare ESC byte for ESCDELAY ms to
   // disambiguate it from an arrow/function-key sequence; the historical default
   // (~1s) makes every Esc affordance (overlay menu, cancel search, dismiss
   // dialog) feel like a hang. 25ms is instant to a human yet ample for a
   // genuine CSI/SS3 sequence to arrive intact over local and typical SSH
-  // latency. Guarded so plain curses and PDCurses still build.
+  // latency. PDCurses reads the Windows console directly and delivers Esc and
+  // function keys as distinct events, so it never imposes this wait and exposes
+  // no ESCDELAY/set_escdelay knob to tune — the ncurses-only guard is correct.
 #if defined(NCURSES_VERSION)
   (void)set_escdelay(25);
-#elif defined(PDCURSES)
-  ESCDELAY = 25;
 #endif
 
   tui_saved_cursor_state = curs_set(0);
