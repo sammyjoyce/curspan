@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "../../core/error.h"
+#include "../opencli_contract.h"
 #include "../option_meta.h"
 #include "cli_layout.h"
 
@@ -150,7 +151,7 @@ static void help_render_commands(app_cli_render_ctx_t *ctx) {
   help_row_t rows[APP_HELP_MAX_ROWS];
   size_t n = 0;
   for (size_t i = 0; i < count && n < APP_HELP_MAX_ROWS; i++) {
-    if (commands[i].hidden_from_help) {
+    if (!app_command_is_visible(&commands[i])) {
       continue;
     }
     help_row_set(&rows[n++], commands[i].name,
@@ -221,20 +222,19 @@ static void help_render_verbose(app_cli_render_ctx_t *ctx) {
   help_render_options(ctx, true);
 
   app_cli_section_title(ctx, "ENVIRONMENT");
-  static const char *const env_lines[] = {
-      "  APP_LOG_LEVEL       Logging level: ERROR, WARNING, INFO, DEBUG.",
-      "  APP_CONFIG_PATH     Override the default config file lookup.",
-      "  NO_COLOR            Disable colored output when set.",
-      "  FORCE_COLOR         Force color on; set 0 to force off.",
-      "  CLICOLOR_FORCE      Set non-zero to force color on.",
-      "  CLICOLOR            Set 0 to disable colored output.",
-      "  APP_CLI_THEME       CLI theme: auto (detect), dark, or light.",
-      "  APP_CLI_COLOR       Color profile: auto, never, 16, 256, truecolor.",
-      "  APP_CLI_OSC11       Set 0 to disable terminal background detection.",
-      "  APP_CLI_ACCENT      Override accent (#rrggbb or palette idx).",
-  };
-  help_render_plain_block(ctx, env_lines,
-                          sizeof(env_lines) / sizeof(env_lines[0]));
+  // Render the same canonical environment table the OpenCLI contract publishes
+  // (app_opencli_environment_docs), so this styled help, the plain help, and
+  // the machine contract all document one identical set of variables.
+  size_t env_count = 0;
+  const app_opencli_metadata_field_t *env_docs =
+      app_opencli_environment_docs(&env_count);
+  for (size_t i = 0; i < env_count; i++) {
+    char line[160];
+    snprintf(line, sizeof(line), "  %-20s%s", env_docs[i].name,
+             env_docs[i].description ? env_docs[i].description : "");
+    app_cli_write_token(ctx, APP_CLI_COLOR_TOKEN_DESCRIPTION, line);
+    app_cli_newline(ctx);
+  }
   app_cli_newline(ctx);
 
   app_cli_section_title(ctx, "CONFIGURATION");

@@ -12,7 +12,7 @@ size_t app_actions_from_commands(app_action_item_t *out, size_t out_count) {
   size_t written = 0;
   for (size_t i = 0; i < command_count; i++) {
     const app_command_t *command = &commands[i];
-    if (command->hidden_from_help) {
+    if (!app_command_is_visible(command)) {
       continue;
     }
     if (out && written < out_count) {
@@ -30,7 +30,11 @@ size_t app_actions_from_commands(app_action_item_t *out, size_t out_count) {
                               .command_name = command->name,
                               .capabilities = capabilities,
                               .examples = command->examples,
-                              .example_count = command->example_count};
+                              .example_count = command->example_count,
+                              .arguments = command->arguments,
+                              .argument_count = command->argument_count,
+                              .options = command->options,
+                              .option_count = command->option_count};
     }
     written++;
   }

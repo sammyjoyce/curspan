@@ -59,6 +59,18 @@ APP_NODISCARD app_error tui_init_colors(void);
 void tui_set_color(WINDOW *win, tui_color_pair_t color);
 void tui_unset_color(WINDOW *win, tui_color_pair_t color);
 
+// Set the TUI color policy before tui_init(), mirroring the CLI. The generated
+// app passes app_use_colors(config) so NO_COLOR / FORCE_COLOR /
+// CLICOLOR(_FORCE) / --no-color / --plain disable or force TUI color exactly as
+// they do CLI output. When never called, the TUI falls back to terminal
+// capability detection alone, preserving standalone behavior for foreign
+// library consumers.
+void tui_set_color_enabled(bool enabled);
+
+// Whether color was actually activated by the most recent tui_init() (policy
+// allowed it, the terminal supports color, and start_color() succeeded).
+bool tui_colors_enabled(void);
+
 // Window helpers
 APP_NODISCARD tui_window_t *tui_create_window(int height, int width, int y,
                                               int x);

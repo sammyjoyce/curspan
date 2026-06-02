@@ -57,3 +57,9 @@ typedef struct {
 } app_opencli_contract_t;
 
 const app_opencli_contract_t *app_opencli_contract(void);
+
+// The canonical environment-variable documentation, also published as the
+// OpenCLI `metadata.environment` group. Root --help (plain and styled) renders
+// the same rows so the documented environment never drifts from the machine
+// contract. count receives the entry count.
+const app_opencli_metadata_field_t *app_opencli_environment_docs(size_t *count);

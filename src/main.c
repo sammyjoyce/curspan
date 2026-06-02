@@ -297,19 +297,11 @@ int main(int argc, char *argv[]) {
   if (argc == 1) {
     // A bare invocation launches the TUI on an interactive terminal. JSON
     // output (set via config or env, since argc == 1 means no flags) targets
-    // machine consumers and conflicts with the interactive TUI, so reject it
-    // with the same guidance app_cmd_menu gives. Falling through to the
-    // headless path here would instead emit "expects a JSON request object on
-    // stdin", which misdescribes the real problem.
+    // machine consumers and conflicts with the interactive TUI. app_run_tui()
+    // owns that precondition now and rejects it with the same message `menu`
+    // gives, so both entry points stay byte-identical; routing to the headless
+    // path here instead would misdescribe the problem as missing stdin input.
     if (app_terminal_is_interactive()) {
-      if (app_config_is_json_output(config)) {
-        app_output(
-            "JSON output is enabled on an interactive terminal; "
-            "unset json_output to launch the TUI",
-            config, true);
-        app_config_destroy(config);
-        return APP_ERROR_INVALID_ARG;
-      }
       err = app_run_tui(config);
     } else {
       err = app_run_headless_json(config, start_ms);

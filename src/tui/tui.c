@@ -25,6 +25,14 @@
 
 static bool tui_initialized = false;
 static bool tui_default_colors = false;
+// Color policy the app resolves from config/env via app_use_colors(): -1 unset
+// (fall back to terminal capability alone), 0 forced off, 1 allowed. Set by
+// tui_set_color_enabled() before tui_init().
+static int tui_color_policy = -1;
+// Whether color was actually activated this session (policy allowed AND the
+// terminal supports it AND start_color() succeeded). Gates tui_set_color() so a
+// policy-disabled run never applies uninitialized color pairs.
+static bool tui_colors_active = false;
 static volatile sig_atomic_t tui_interrupted_signal = 0;
 static int tui_saved_cursor_state = 0;
 static tui_window_t *tui_background_win = NULL;
@@ -246,10 +254,18 @@ app_error tui_init(void) {
 
   tui_saved_cursor_state = curs_set(0);
 
-  if (has_colors()) {
+  // Honor the app-resolved color policy (app_use_colors) so the TUI suppresses
+  // or forces color for exactly the same NO_COLOR / FORCE_COLOR / CLICOLOR(_
+  // FORCE) / --no-color / --plain inputs the CLI obeys. tui_color_policy == 0
+  // means a hard disable; -1 (unset) and 1 both allow color subject to terminal
+  // capability. When disabled we skip start_color() entirely and leave
+  // tui_colors_active false, so tui_set_color() becomes a no-op and the whole
+  // UI renders in the terminal's default monochrome.
+  if (tui_color_policy != 0 && has_colors()) {
     if (start_color() != ERR) {
       tui_default_colors = use_default_colors() != ERR;
       (void)tui_init_colors();
+      tui_colors_active = true;
     }
   }
 
@@ -266,6 +282,7 @@ fail:
   endwin();
   app_terminal_discard_pending_input();
   tui_default_colors = false;
+  tui_colors_active = false;
   tui_interrupted_signal = 0;
   return err;
 }
@@ -284,6 +301,7 @@ void tui_cleanup(void) {
 
   tui_initialized = false;
   tui_default_colors = false;
+  tui_colors_active = false;
   tui_clear_background_window();
   tui_interrupted_signal = 0;
   LOG_DEBUG("TUI cleaned up");
@@ -383,17 +401,29 @@ app_error tui_init_colors(void) {
 }
 
 void tui_set_color(WINDOW *win, tui_color_pair_t color) {
-  if (win && has_colors() && color > TUI_COLOR_DEFAULT &&
+  // Guard on tui_colors_active, not has_colors(): when the color policy
+  // disabled color we never called start_color()/init_pair(), so applying a
+  // COLOR_PAIR would reference an uninitialized pair. Skipping keeps the UI
+  // monochrome.
+  if (win && tui_colors_active && color > TUI_COLOR_DEFAULT &&
       color < TUI_COLOR_MAX) {
     wattron(win, COLOR_PAIR(color) | (color == TUI_COLOR_DIM ? A_DIM : 0));
   }
 }
 
 void tui_unset_color(WINDOW *win, tui_color_pair_t color) {
-  if (win && has_colors() && color > TUI_COLOR_DEFAULT &&
+  if (win && tui_colors_active && color > TUI_COLOR_DEFAULT &&
       color < TUI_COLOR_MAX) {
     wattroff(win, COLOR_PAIR(color) | (color == TUI_COLOR_DIM ? A_DIM : 0));
   }
+}
+
+void tui_set_color_enabled(bool enabled) {
+  tui_color_policy = enabled ? 1 : 0;
+}
+
+bool tui_colors_enabled(void) {
+  return tui_colors_active;
 }
 
 tui_window_t *tui_create_window(int height, int width, int y, int x) {

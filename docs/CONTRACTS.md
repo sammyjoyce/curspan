@@ -115,6 +115,10 @@ zig-out/include/c23-cli-template/tui/tui_progress.h
 **Supported:**
 
 - the `tui_init()` / `tui_cleanup()` lifecycle from `tui.h`
+- `tui_set_color_enabled()` to set the color policy before `tui_init()` — the
+  generated app passes `app_use_colors(config)` so the TUI honours the same
+  `NO_COLOR` / `FORCE_COLOR` / `CLICOLOR(_FORCE)` / `--no-color` / `--plain`
+  inputs as the CLI; left unset, the TUI falls back to terminal capability alone
 - `tui_show_menu()` from `tui_menu.h`
 - `tui_menu_config_t`, `tui_menu_item_t`, and `tui_menu_result_t`
 - the pointer-lifetime rules documented in `tui_menu.h`

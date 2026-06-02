@@ -39,13 +39,20 @@ static bool test_installed_binary_starts(test_context_t *ctx) {
 static bool test_help_is_human_readable(test_context_t *ctx) {
   const char *args[] = {"--help"};
   command_result_t result = cc_run_cli(ctx, args, ARRAY_LEN(args), NULL, 0);
-  const bool ok = cc_expect_exit(&result, 0) &&
-                  cc_expect_stdout_contains(&result, "USAGE") &&
-                  cc_expect_stdout_contains(&result, "COMMANDS") &&
-                  cc_expect_stdout_contains(&result, "doctor") &&
-                  cc_expect_stdout_contains(
-                      &result, "Enable debug output (DEBUG level logs)") &&
-                  cc_expect_stdout_contains(&result, "(env: APP_LOG_LEVEL)");
+  const bool ok =
+      cc_expect_exit(&result, 0) &&
+      cc_expect_stdout_contains(&result, "USAGE") &&
+      cc_expect_stdout_contains(&result, "COMMANDS") &&
+      cc_expect_stdout_contains(&result, "doctor") &&
+      cc_expect_stdout_contains(&result,
+                                "Enable debug output (DEBUG level logs)") &&
+      cc_expect_stdout_contains(&result, "(env: APP_LOG_LEVEL)") &&
+      // ENVIRONMENT is rendered from the single canonical table the
+      // OpenCLI contract publishes, so the color env vars and
+      // APP_CONFIG_PATH appear here just as they do in opencli.json.
+      cc_expect_stdout_contains(&result, "FORCE_COLOR") &&
+      cc_expect_stdout_contains(&result, "NO_COLOR") &&
+      cc_expect_stdout_contains(&result, "APP_CONFIG_PATH");
   if (ok && result.out && strstr(result.out, "  menu") != NULL) {
     fprintf(stderr, "root help must not list the interactive menu command\n");
     fprintf(stderr, "stdout:\n%s\n", result.out);

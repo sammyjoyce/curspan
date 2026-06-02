@@ -226,6 +226,15 @@ const app_command_t *app_command_find(const char *name) {
   return NULL;
 }
 
+bool app_command_is_visible(const app_command_t *command) {
+  // Single definition of "appears in human-facing listings" shared by root
+  // --help (plain and styled) and the TUI Commands browser, so those surfaces
+  // can never disagree on which commands a person sees. Hidden commands stay
+  // dispatchable and remain in the OpenCLI contract (the machine surface lists
+  // every command); only human discovery filters on this.
+  return command && !command->hidden_from_help;
+}
+
 // Levenshtein edit distance between a and b. Bounded to short inputs (a real
 // typo is short): anything longer is treated as far away so the suggestion gate
 // rejects it. Command names are tiny, so the row buffers are small.

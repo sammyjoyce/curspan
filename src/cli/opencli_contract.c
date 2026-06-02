@@ -21,6 +21,8 @@ static const app_opencli_metadata_field_t environment_fields[] = {
     {.name = "APP_LOG_LEVEL",
      .description =
          "Set logging verbosity: ERROR, WARNING, INFO, DEBUG (default: ERROR)"},
+    {.name = "APP_CONFIG_PATH",
+     .description = "Override the default config file lookup path"},
     {.name = "NO_COLOR", .description = "Disable colored output when set"},
     {.name = "FORCE_COLOR",
      .description = "Force colored output on; set 0 (or false) to force off"},
@@ -100,4 +102,15 @@ static const app_opencli_contract_t g_opencli_contract = {
 
 const app_opencli_contract_t *app_opencli_contract(void) {
   return &g_opencli_contract;
+}
+
+const app_opencli_metadata_field_t *app_opencli_environment_docs(
+    size_t *count) {
+  // The same table the OpenCLI `metadata.environment` group publishes. The
+  // human help renderers (plain and styled) iterate this so the documented
+  // environment stays congruent with the machine contract from one source.
+  if (count) {
+    *count = sizeof(environment_fields) / sizeof(environment_fields[0]);
+  }
+  return environment_fields;
 }

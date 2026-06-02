@@ -44,6 +44,7 @@ void app_print_command_help_ex(const char *program_name,
 
 #include "../utils/colors.h"
 #include "../utils/logging.h"
+#include "opencli_contract.h"
 #include "option_meta.h"
 
 static const char *program_or_default(const char *program_name) {
@@ -59,7 +60,7 @@ static void print_commands_block(void) {
   const app_command_t *commands = app_commands(&count);
   printf("Commands:\n");
   for (size_t i = 0; i < count; i++) {
-    if (commands[i].hidden_from_help) {
+    if (!app_command_is_visible(&commands[i])) {
       continue;
     }
     printf("  %-16s%s\n", commands[i].name,
@@ -152,7 +153,7 @@ void app_print_verbose_usage_ex(const char *program_name,
   size_t cmd_count = 0;
   const app_command_t *commands = app_commands(&cmd_count);
   for (size_t i = 0; i < cmd_count; i++) {
-    if (commands[i].hidden_from_help) {
+    if (!app_command_is_visible(&commands[i])) {
       continue;
     }
     printf("  %-18s%s\n", commands[i].name,
@@ -167,10 +168,16 @@ void app_print_verbose_usage_ex(const char *program_name,
   printf("\n");
 
   printf("%sENVIRONMENT%s\n", bold, reset);
-  printf(
-      "  APP_LOG_LEVEL       Set logging level: ERROR, WARNING, INFO, DEBUG\n");
-  printf("  APP_CONFIG_PATH     Override the default config file lookup.\n");
-  printf("  NO_COLOR            Disable colored output when set.\n\n");
+  // Render the same canonical environment table the OpenCLI contract publishes,
+  // so this plain help and the machine contract document identical variables.
+  size_t env_count = 0;
+  const app_opencli_metadata_field_t *env_docs =
+      app_opencli_environment_docs(&env_count);
+  for (size_t i = 0; i < env_count; i++) {
+    printf("  %-20s%s\n", env_docs[i].name,
+           env_docs[i].description ? env_docs[i].description : "");
+  }
+  printf("\n");
 
   printf("%sEXIT CODES%s\n", bold, reset);
   size_t error_count = 0;

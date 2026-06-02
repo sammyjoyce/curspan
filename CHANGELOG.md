@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   unreadable one — instead of a blanket I/O error (11).
 - The interactive TUI now responds to `Esc` promptly (ESCDELAY tuned to 25 ms)
   rather than pausing up to a second on every Esc affordance.
+- The interactive TUI honours the same color policy as the CLI: `NO_COLOR`,
+  `FORCE_COLOR`, `CLICOLOR`/`CLICOLOR_FORCE`, and the `--no-color`/`--plain`
+  flags now disable or force TUI color, where it previously consulted only the
+  terminal's capability. Both surfaces resolve color through one `app_use_colors`
+  helper.
+- `myapp menu` and the bare-TTY launch now reject conflicting JSON output with a
+  single shared message and exit code, instead of two slightly different
+  wordings on the two entry points.
 
 ### Added
 
@@ -31,6 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   contract.
 - The TUI Commands browser now lists each command's example invocations
   alongside its summary.
+- The TUI Commands browser now also shows each command's arguments and options,
+  carried through the shared action seam so the detail view mirrors the usage
+  `--help` renders.
 
 ### Fixed
 
@@ -42,6 +53,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `FORCE_COLOR=0` now disables color instead of (as before) enabling it.
 - The TUI Commands browser hides commands marked hidden from `--help`, so it no
   longer lists the internal `menu` command.
+- The plain-text `--help` ENVIRONMENT section now lists the same variables as
+  the styled help and the OpenCLI contract (previously only three), all rendered
+  from one shared table so the documentation cannot drift between build modes.
 
 ## [0.1.0]
 
