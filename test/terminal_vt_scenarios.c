@@ -353,7 +353,8 @@ int run_tui_bare_invocation_json(test_stats_t *stats, const char *binary,
     failed = test_fail(stats, name, "failed to start PTY session");
   }
   if (!failed &&
-      !vt_expect_text(&session, "unset json_output to launch the TUI",
+      !vt_expect_text(&session,
+                      "JSON output is incompatible with the interactive TUI",
                       PTY_TIMEOUT_MS, &snapshot)) {
     failed = test_fail(
         stats, name,

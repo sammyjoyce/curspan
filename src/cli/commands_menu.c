@@ -7,13 +7,29 @@
 #include "../core/error.h"
 #include "../core/types.h"
 #include "../io/output.h"
+#include "../utils/colors.h"
 #ifdef ENABLE_TUI
 #include "../tui/tui.h"
 #endif
 #include "commands.h"
 
 app_error app_run_tui(const app_config_t *config) {
+  // Single TUI launch precondition shared by `myapp menu` and the bare-TTY
+  // launch in main(): the interactive TUI cannot coexist with machine JSON
+  // output. Reject it once, identically, on both entry points (this was
+  // duplicated with divergent wording in main.c and app_cmd_menu).
+  if (app_config_is_json_output(config)) {
+    app_output(
+        "JSON output is incompatible with the interactive TUI; remove "
+        "--json (or unset json_output) to launch it.",
+        config, true);
+    return APP_ERROR_INVALID_ARG;
+  }
 #ifdef ENABLE_TUI
+  // Mirror the CLI's resolved color policy in the TUI so NO_COLOR / FORCE_COLOR
+  // / CLICOLOR(_FORCE) / --no-color / --plain behave identically on both
+  // surfaces. The TUI otherwise consulted only terminal capability.
+  tui_set_color_enabled(app_use_colors(config));
   const app_error tui_err = tui_run_app();
   // Signal-driven exits already use conventional shell statuses. Keep them
   // quiet instead of printing a misleading TUI failure diagnostic.
@@ -50,12 +66,7 @@ app_error app_cmd_menu(const app_config_t *config, int argc,
   (void)argc;
   (void)argv;
 
-  if (app_config_is_json_output(config)) {
-    app_output(
-        "The menu command is interactive; remove --json to launch the TUI.",
-        config, true);
-    return APP_ERROR_INVALID_ARG;
-  }
-
+  // The --json precondition lives in app_run_tui() now, so `menu` and the
+  // bare-TTY launch reject it identically.
   return app_run_tui(config);
 }

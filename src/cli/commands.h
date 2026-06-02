@@ -104,6 +104,12 @@ const app_global_value_option_t *app_global_value_option_find(const char *arg);
 // Look up a command by name. Returns NULL when no command matches.
 const app_command_t *app_command_find(const char *name);
 
+// True when a command should appear in human-facing listings: root --help
+// (plain and styled) and the TUI Commands browser. Hidden commands stay
+// dispatchable and remain in the OpenCLI contract; only human discovery
+// surfaces filter on this, so they all agree on what a person sees.
+bool app_command_is_visible(const app_command_t *command);
+
 // Suggest the closest visible command name to an unknown token (bounded edit
 // distance), or NULL when nothing is close enough. Hidden commands are never
 // suggested, so a typo near an internal command yields no misleading hint.

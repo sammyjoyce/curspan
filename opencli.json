@@ -316,6 +316,7 @@
         "name": "environment",
         "value": {
           "APP_LOG_LEVEL": "Set logging verbosity: ERROR, WARNING, INFO, DEBUG (default: ERROR)",
+          "APP_CONFIG_PATH": "Override the default config file lookup path",
           "NO_COLOR": "Disable colored output when set",
           "FORCE_COLOR": "Force colored output on; set 0 (or false) to force off",
           "CLICOLOR_FORCE": "Set to a non-zero value to force colored output on",

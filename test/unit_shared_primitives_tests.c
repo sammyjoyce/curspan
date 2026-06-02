@@ -25,9 +25,29 @@ static const char *const stub_hello_examples[] = {
     "app hello Alice",
 };
 
+// Argument and option metadata the seam must carry through to a TUI detail view
+// exactly as the CLI command table declares it (borrowed, not copied).
+static const app_command_arg_t stub_hello_args[] = {
+    {.name = "name",
+     .required = false,
+     .arity_minimum = 0,
+     .arity_maximum = 1,
+     .description = "Who to greet"},
+};
+
+static const app_command_option_t stub_hello_options[] = {
+    {.id = APP_COMMAND_OPTION_UNKNOWN,
+     .name = "--loud",
+     .description = "Greet emphatically"},
+};
+
 static const app_command_t stub_commands[] = {
     {.name = "hello",
      .summary = "Print a greeting",
+     .options = stub_hello_options,
+     .option_count = 1,
+     .arguments = stub_hello_args,
+     .argument_count = 1,
      .examples = stub_hello_examples,
      .example_count = 2,
      .hidden_from_help = false},
@@ -43,6 +63,13 @@ const app_command_t *app_commands(size_t *count) {
     *count = sizeof(stub_commands) / sizeof(stub_commands[0]);
   }
   return stub_commands;
+}
+
+// app_actions_from_commands() now filters through app_command_is_visible()
+// (commands.c). The unit binary stubs the command table instead of linking
+// commands.c, so provide the predicate here with the production semantics.
+bool app_command_is_visible(const app_command_t *command) {
+  return command && !command->hidden_from_help;
 }
 
 static bool test_app_info_feature_table(void) {
@@ -233,6 +260,27 @@ static bool test_actions_from_commands_excludes_hidden(void) {
   return saw_hello && hello_has_examples && !saw_menu;
 }
 
+static bool test_actions_from_commands_carries_usage_metadata(void) {
+  // The seam must borrow the command's arguments and options so a TUI detail
+  // view can render the same usage `--help` shows, pointing at the very same
+  // table entries (zero-copy) rather than duplicating them.
+  app_action_item_t actions[16];
+  const size_t count = app_actions_from_commands(actions, 16);
+  for (size_t i = 0; i < count; i++) {
+    if (!actions[i].command_name ||
+        strcmp(actions[i].command_name, "hello") != 0) {
+      continue;
+    }
+    return actions[i].argument_count == 1 && actions[i].arguments != NULL &&
+           actions[i].arguments == stub_hello_args &&
+           strcmp(actions[i].arguments[0].name, "name") == 0 &&
+           actions[i].option_count == 1 && actions[i].options != NULL &&
+           actions[i].options == stub_hello_options &&
+           strcmp(actions[i].options[0].name, "--loud") == 0;
+  }
+  return false;
+}
+
 static bool test_diagnostics_collects_core_checks(void) {
   app_config_t *config = NULL;
   if (app_config_create(&config) != APP_SUCCESS) {
@@ -267,6 +315,8 @@ void run_shared_primitives_unit_tests(unit_stats_t *stats) {
               "tui_menu_adapter maps action descriptors");
   unit_record(stats, test_actions_from_commands_excludes_hidden(),
               "action projection skips hidden commands and carries examples");
+  unit_record(stats, test_actions_from_commands_carries_usage_metadata(),
+              "action projection carries command arguments and options");
   unit_record(stats, test_diagnostics_collects_core_checks(),
               "diagnostics collector returns core checks");
 }

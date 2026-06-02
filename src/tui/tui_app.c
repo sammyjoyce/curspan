@@ -53,7 +53,8 @@ static void app_show_system_info(void) {
            "Terminal Size: %dx%d\n"
            "Colors Supported: %s",
            build->name, build->version, build->git_commit, build->build_date,
-           tui_get_max_x(), tui_get_max_y(), has_colors() ? "yes" : "no");
+           tui_get_max_x(), tui_get_max_y(),
+           tui_colors_enabled() ? "yes" : "no");
   tui_show_message("System Information", info);
 }
 
@@ -250,7 +251,7 @@ static void app_detail_append(char *dst, size_t cap, size_t *used,
 static void app_show_command_detail(const app_action_item_t *action) {
   const bool interactive =
       (action->capabilities & APP_ACTION_CAP_INTERACTIVE_TERMINAL) != 0;
-  char detail[512];
+  char detail[1024];
   const int header =
       snprintf(detail, sizeof(detail),
                "Command: %s\n\n"
@@ -264,8 +265,39 @@ static void app_show_command_detail(const app_action_item_t *action) {
     used = sizeof(detail) - 1;
   }
 
-  // Surface the same ready-to-run examples the CLI `--help` prints, so the
-  // Commands browser is a real reference rather than just a name + summary.
+  // Mirror the CLI `--help` layout (options, then arguments, then examples) so
+  // the Commands browser is a real command reference, not just a name and
+  // summary. All three blocks read the borrowed metadata the shared action seam
+  // carries from the same command table `--help` renders.
+  if (action->options && action->option_count > 0) {
+    app_detail_append(detail, sizeof(detail), &used, "\n\nOptions:");
+    for (size_t i = 0; i < action->option_count; i++) {
+      if (!action->options[i].name) {
+        continue;
+      }
+      char line[192];
+      snprintf(
+          line, sizeof(line), "\n  %-16s%s", action->options[i].name,
+          action->options[i].description ? action->options[i].description : "");
+      app_detail_append(detail, sizeof(detail), &used, line);
+    }
+  }
+
+  if (action->arguments && action->argument_count > 0) {
+    app_detail_append(detail, sizeof(detail), &used, "\n\nArguments:");
+    for (size_t i = 0; i < action->argument_count; i++) {
+      const app_command_arg_t *arg = &action->arguments[i];
+      if (!arg->name) {
+        continue;
+      }
+      char line[192];
+      snprintf(line, sizeof(line), "\n  %-16s%s%s", arg->name,
+               arg->required ? "(required) " : "",
+               arg->description ? arg->description : "");
+      app_detail_append(detail, sizeof(detail), &used, line);
+    }
+  }
+
   if (action->examples && action->example_count > 0) {
     app_detail_append(detail, sizeof(detail), &used, "\n\nExamples:");
     for (size_t i = 0; i < action->example_count; i++) {
