@@ -2,7 +2,7 @@
 
 This page is for problems with the **template itself**, not with a project you generated from it.
 
-- **Search existing issues:** [c23-cli-template/issues](https://github.com/sammyjoyce/c23-cli-template/issues)
+- **Search existing issues:** [curspan/issues](https://github.com/sammyjoyce/curspan/issues)
 - **Open a new issue:** use the provided issue templates.
 - **Problems in your generated project:** use that repository's own issue tracker.
 

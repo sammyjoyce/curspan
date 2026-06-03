@@ -1,4 +1,4 @@
-# Justfile for C23 CLI Template
+# Justfile for Curspan
 # Quick reference: https://just.systems/man/en/
 
 set positional-arguments

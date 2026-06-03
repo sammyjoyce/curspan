@@ -58,13 +58,14 @@ typedef struct {
 
 // Human-readable application title and description
 #ifndef APP_TITLE
-#define APP_TITLE "C23 TUI + CLI Starter"
+#define APP_TITLE "Curspan"
 #endif
 
 #ifndef APP_DESCRIPTION
-#define APP_DESCRIPTION                                                     \
-  "A ready-to-use C23 starter for command-line tools and ncurses terminal " \
-  "UIs."
+// clang-format off
+#define APP_DESCRIPTION \
+  "A ready-to-use C23 starter for command-line tools and ncurses terminal UIs."
+// clang-format on
 #endif
 
 // Build date - should be provided by build system

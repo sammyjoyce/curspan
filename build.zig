@@ -244,7 +244,7 @@ pub fn build(b: *std.Build) void {
 
     const version_str = b.option([]const u8, "version", "Application version string") orelse "0.1.0";
     const app_name = b.option([]const u8, "app-name", "Application and binary name") orelse "myapp";
-    const app_title = b.option([]const u8, "app-title", "Human-readable application title") orelse "C23 TUI + CLI Starter";
+    const app_title = b.option([]const u8, "app-title", "Human-readable application title") orelse "Curspan";
     const app_description = b.option([]const u8, "app-description", "Application description") orelse "A ready-to-use C23 starter for command-line tools and ncurses terminal UIs.";
     const binary_name = app_name;
 
@@ -576,11 +576,11 @@ pub fn build(b: *std.Build) void {
 
     const install_tui_menu_lib = b.addInstallArtifact(tui_menu_lib, .{});
     const install_tui_headers = [_]*std.Build.Step.InstallFile{
-        b.addInstallFile(b.path("src/core/error.h"), "include/c23-cli-template/core/error.h"),
-        b.addInstallFile(b.path("src/core/types.h"), "include/c23-cli-template/core/types.h"),
-        b.addInstallFile(b.path("src/tui/tui.h"), "include/c23-cli-template/tui/tui.h"),
-        b.addInstallFile(b.path("src/tui/tui_menu.h"), "include/c23-cli-template/tui/tui_menu.h"),
-        b.addInstallFile(b.path("src/tui/tui_progress.h"), "include/c23-cli-template/tui/tui_progress.h"),
+        b.addInstallFile(b.path("src/core/error.h"), "include/curspan/core/error.h"),
+        b.addInstallFile(b.path("src/core/types.h"), "include/curspan/core/types.h"),
+        b.addInstallFile(b.path("src/tui/tui.h"), "include/curspan/tui/tui.h"),
+        b.addInstallFile(b.path("src/tui/tui_menu.h"), "include/curspan/tui/tui_menu.h"),
+        b.addInstallFile(b.path("src/tui/tui_progress.h"), "include/curspan/tui/tui_progress.h"),
     };
 
     // pkg-config manifest so a consumer can `pkg-config --cflags --libs
