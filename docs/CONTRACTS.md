@@ -117,8 +117,9 @@ zig-out/include/curspan/tui/tui_progress.h
 - the `tui_init()` / `tui_cleanup()` lifecycle from `tui.h`
 - `tui_set_color_enabled()` to set the color policy before `tui_init()` — the
   generated app passes `app_use_colors(config)` so the TUI honours the same
-  `NO_COLOR` / `FORCE_COLOR` / `CLICOLOR(_FORCE)` / `--no-color` / `--plain`
-  inputs as the CLI; left unset, the TUI falls back to terminal capability alone
+  `NO_COLOR` / `FORCE_COLOR` / `CLICOLOR(_FORCE)` / `APP_CLI_COLOR=never` /
+  `--no-color` / `--plain` inputs as the CLI; left unset, the TUI falls back
+  to terminal capability alone
 - `tui_show_menu()` from `tui_menu.h`
 - `tui_menu_config_t`, `tui_menu_item_t`, and `tui_menu_result_t`
 - the pointer-lifetime rules documented in `tui_menu.h`
@@ -151,6 +152,9 @@ cc app.c $(pkg-config --cflags tui-menu) \
 
 - `tui_menu_internal.h` and `tui_menu_state_t` internals
 - cell-by-cell rendering details
+- exact colors, palette slots, and color-pair mappings (the CLI and generated
+  TUI intentionally share the same env policy and semantic roles, but not a
+  stable color ABI)
 - exact footer/help text inside the alternate screen
 - terminal-test snapshots, except where a test names a specific invariant
 

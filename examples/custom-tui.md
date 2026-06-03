@@ -174,7 +174,7 @@ if (result.status == TUI_MENU_OK) {
 
 ## 4. Colors
 
-Set a color pair before drawing and unset it after. The pairs are roles, not fixed colors. The theme is defined in `tui_init_colors()` (`src/tui/tui.c`), seeded from `src/style/design_tokens.c`:
+Set a color pair before drawing and unset it after. The pairs are roles, not fixed colors. The theme is realized in `tui_init_colors()` (`src/tui/tui.c`) from the shared semantic roles in `src/style/ui_theme.c`, which are seeded from `src/style/design_tokens.c`:
 
 ```c
 tui_set_color(window->win, TUI_COLOR_ERROR);

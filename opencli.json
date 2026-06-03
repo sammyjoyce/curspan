@@ -321,10 +321,10 @@
           "FORCE_COLOR": "Force colored output on; set 0 (or false) to force off",
           "CLICOLOR_FORCE": "Set to a non-zero value to force colored output on",
           "CLICOLOR": "Set 0 to disable colored output",
-          "APP_CLI_THEME": "CLI theme: auto (detect), dark, or light",
-          "APP_CLI_COLOR": "Color profile: auto, never, 16, 256, truecolor",
+          "APP_CLI_THEME": "Terminal UI theme for styled CLI and generated TUI: auto, dark, or light",
+          "APP_CLI_COLOR": "Terminal UI color profile: auto, never, 16, 256, truecolor",
           "APP_CLI_OSC11": "Set 0 to disable terminal background detection",
-          "APP_CLI_ACCENT": "Override accent color (#rrggbb or palette index)"
+          "APP_CLI_ACCENT": "Override terminal UI accent (#rrggbb or palette index)"
         }
       },
       {

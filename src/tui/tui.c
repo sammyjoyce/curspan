@@ -19,6 +19,7 @@
 
 #include "../io/terminal.h"
 #include "../style/design_tokens.h"
+#include "../style/ui_theme.h"
 #include "../ui/text_layout.h"
 #include "../utils/logging.h"
 #include "tui_internal.h"
@@ -36,6 +37,7 @@ static bool tui_colors_active = false;
 static volatile sig_atomic_t tui_interrupted_signal = 0;
 static int tui_saved_cursor_state = 0;
 static tui_window_t *tui_background_win = NULL;
+static bool tui_color_env_disabled(void);
 #define TUI_BACKGROUND_STACK_MAX 16
 static tui_window_t *tui_background_stack[TUI_BACKGROUND_STACK_MAX];
 static size_t tui_background_stack_depth = 0;
@@ -261,7 +263,7 @@ app_error tui_init(void) {
   // capability. When disabled we skip start_color() entirely and leave
   // tui_colors_active false, so tui_set_color() becomes a no-op and the whole
   // UI renders in the terminal's default monochrome.
-  if (tui_color_policy != 0 && has_colors()) {
+  if (tui_color_policy != 0 && !tui_color_env_disabled() && has_colors()) {
     if (start_color() != ERR) {
       tui_default_colors = use_default_colors() != ERR;
       (void)tui_init_colors();
@@ -323,41 +325,224 @@ app_error tui_take_interrupt_error(void) {
 
 /* ---- color management --------------------------------------------------- */
 
-/* Warm "amber on near-black" palette inspired by gitlogue's ayu/gruvbox
- * themes. When the terminal can redefine palette entries we mix exact RGB
- * tones; otherwise we fall back to a coherent warm mapping over the 8 base
- * colors. Custom entries live at indices 16+ so the base colors stay intact
- * for any code that references COLOR_RED/GREEN/... directly. */
+/* Curses cannot portably emit per-cell 24-bit SGR without desynchronizing its
+ * screen model. The closest high-fidelity path is a programmable palette: seed
+ * custom slots from the shared UI roles, then bind small semantic color pairs
+ * to those slots. When palette mutation is unavailable, use the same RGB ->
+ * xterm256 / semantic ANSI-16 degradation the styled CLI uses. */
 enum {
-  TUI_RGB_AMBER = 16, /* accent: titles, numbers, markers */
-  TUI_RGB_FG,         /* primary warm foreground */
-  TUI_RGB_MUTED,      /* dim gray: borders, separators, hints */
-  TUI_RGB_GREEN,      /* soft success green */
+  TUI_RGB_TEXT = 16,
+  TUI_RGB_TITLE,
+  TUI_RGB_MUTED,
+  TUI_RGB_ACCENT,
+  TUI_RGB_SUCCESS,
+  TUI_RGB_WARNING,
+  TUI_RGB_INFO,
+  TUI_RGB_ERROR,
+  TUI_RGB_SELECTION_FG,
+  TUI_RGB_SELECTION_BG,
   TUI_RGB_LAST,
 };
 
-static bool tui_palette_is_truecolor(void) {
-  return can_change_color() && COLORS >= TUI_RGB_LAST;
+static bool tui_color_env_disabled(void) {
+  const char *color = getenv("APP_CLI_COLOR");
+  return color && strcmp(color, "never") == 0;
 }
 
-/* Seed one custom palette entry from a design-token RGB triple, converting the
- * 0..255 channels to the 0..1000 scale init_color() expects. */
+static app_cli_color_profile_id tui_requested_color_profile(void) {
+  const char *color = getenv("APP_CLI_COLOR");
+  if (!color || color[0] == '\0' || strcmp(color, "auto") == 0 ||
+      strcmp(color, "never") == 0) {
+    return APP_CLI_COLOR_PROFILE_NONE;
+  }
+  if (strcmp(color, "truecolor") == 0) {
+    return APP_CLI_COLOR_PROFILE_TRUECOLOR;
+  }
+  if (strcmp(color, "256") == 0) {
+    return APP_CLI_COLOR_PROFILE_ANSI256;
+  }
+  if (strcmp(color, "16") == 0) {
+    return APP_CLI_COLOR_PROFILE_ANSI16;
+  }
+  return APP_CLI_COLOR_PROFILE_NONE;
+}
+
+static app_ui_theme_mode_id tui_resolve_theme_mode(void) {
+  const char *theme = getenv("APP_CLI_TEST_THEME");
+  if (!theme) {
+    theme = getenv("APP_CLI_THEME");
+  }
+  if (theme && strcmp(theme, "light") == 0) {
+    return APP_UI_THEME_MODE_LIGHT;
+  }
+  return APP_UI_THEME_MODE_DARK;
+}
+
+static bool tui_accent_override_is_indexed(void) {
+  const char *accent = getenv("APP_CLI_ACCENT");
+  if (!accent || !accent[0]) {
+    return false;
+  }
+  app_ui_color_t color;
+  if (!app_ui_color_parse(accent, &color)) {
+    return false;
+  }
+  return color.kind == APP_UI_COLOR_ANSI16 || color.kind == APP_UI_COLOR_ANSI256;
+}
+
+static bool tui_palette_is_programmable(void) {
+  return can_change_color() && COLORS >= TUI_RGB_LAST &&
+         COLOR_PAIRS > TUI_COLOR_MAX;
+}
+
+static app_rgb_t tui_role_rgb(const app_ui_color_scheme_t *scheme,
+                              app_ui_theme_mode_id mode, app_ui_role_id role,
+                              app_rgb_t fallback) {
+  app_ui_color_t color = app_ui_theme_pick(scheme, role, mode);
+  if (color.kind == APP_UI_COLOR_RGB) {
+    return color.rgb;
+  }
+  color = app_ui_theme_pick(app_ui_theme_default_scheme(), role, mode);
+  return color.kind == APP_UI_COLOR_RGB ? color.rgb : fallback;
+}
+
+/* Seed one custom palette entry from an 8-bit RGB triple, converting to the
+ * 0..1000 scale init_color() expects. */
 static void tui_init_color_from(short slot, app_rgb_t c) {
-  init_color(slot, (short)app_design_chan_to_curses(c.r),
-             (short)app_design_chan_to_curses(c.g),
-             (short)app_design_chan_to_curses(c.b));
+  (void)init_color(slot, (short)app_design_chan_to_curses(c.r),
+                   (short)app_design_chan_to_curses(c.g),
+                   (short)app_design_chan_to_curses(c.b));
 }
 
-static void tui_define_rgb_palette(void) {
-  /* Drive the truecolor palette from the shared design tokens so the TUI and
-   * the CLI styling layer stay one source of truth (see design_tokens.h);
-   * init_color() takes the 0..1000 scale. The dead selection slots
-   * (TUI_RGB_SEL_FG/SEL_BG) were removed with the detail-pane cleanup. */
+static void tui_define_rgb_palette(const app_ui_color_scheme_t *scheme,
+                                   app_ui_theme_mode_id mode) {
   const app_design_palette_t *p = &APP_DESIGN_PALETTE;
-  tui_init_color_from(TUI_RGB_AMBER, p->amber);
-  tui_init_color_from(TUI_RGB_FG, p->fg);
-  tui_init_color_from(TUI_RGB_MUTED, p->muted);
-  tui_init_color_from(TUI_RGB_GREEN, p->green);
+  tui_init_color_from(TUI_RGB_TEXT, tui_role_rgb(scheme, mode, APP_UI_ROLE_TEXT,
+                                                 p->fg));
+  tui_init_color_from(TUI_RGB_TITLE, tui_role_rgb(scheme, mode, APP_UI_ROLE_TITLE,
+                                                  p->amber));
+  tui_init_color_from(TUI_RGB_MUTED, tui_role_rgb(scheme, mode, APP_UI_ROLE_MUTED,
+                                                  p->muted));
+  tui_init_color_from(TUI_RGB_ACCENT, tui_role_rgb(scheme, mode, APP_UI_ROLE_ACCENT,
+                                                   p->amber));
+  tui_init_color_from(TUI_RGB_SUCCESS,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SUCCESS, p->green));
+  tui_init_color_from(TUI_RGB_WARNING,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_WARNING, p->yellow));
+  tui_init_color_from(TUI_RGB_INFO, tui_role_rgb(scheme, mode, APP_UI_ROLE_INFO,
+                                                 p->blue));
+  tui_init_color_from(TUI_RGB_ERROR, tui_role_rgb(scheme, mode, APP_UI_ROLE_ERROR_DETAILS,
+                                                  p->red));
+  tui_init_color_from(TUI_RGB_SELECTION_FG,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_FG,
+                                   p->near_black));
+  tui_init_color_from(TUI_RGB_SELECTION_BG,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_BG,
+                                   p->amber));
+}
+
+static short tui_fold_ansi16(uint8_t index, short fallback) {
+  if (COLORS > 0 && COLORS < 16 && index >= 8) {
+    if (index == 8 && fallback >= 0) {
+      return fallback;
+    }
+    index = (uint8_t)(index - 8);
+  }
+  if (COLORS > 0 && index >= (uint8_t)COLORS) {
+    return fallback;
+  }
+  return (short)index;
+}
+
+static short tui_color_index(app_ui_color_t color,
+                             app_cli_color_profile_id profile,
+                             short fallback) {
+  switch (color.kind) {
+  case APP_UI_COLOR_ANSI16:
+    return tui_fold_ansi16(color.ansi16, fallback);
+  case APP_UI_COLOR_ANSI256:
+    if (profile == APP_CLI_COLOR_PROFILE_ANSI256 && COLORS >= 256) {
+      return (short)color.ansi256;
+    }
+    return color.ansi256 < 16 ? tui_fold_ansi16(color.ansi256, fallback)
+                              : fallback;
+  case APP_UI_COLOR_RGB:
+    if (profile == APP_CLI_COLOR_PROFILE_ANSI256 && COLORS >= 256) {
+      return (short)app_color_rgb_to_xterm256(color.rgb);
+    }
+    if (color.has_ansi16_hint) {
+      return tui_fold_ansi16(color.ansi16_hint, fallback);
+    }
+    return tui_fold_ansi16(app_color_rgb_to_ansi16(color.rgb), fallback);
+  case APP_UI_COLOR_DEFAULT:
+    return fallback;
+  case APP_UI_COLOR_UNSET:
+  default:
+    return fallback;
+  }
+}
+
+static short tui_role_index(const app_ui_color_scheme_t *scheme,
+                            app_ui_theme_mode_id mode, app_ui_role_id role,
+                            app_cli_color_profile_id profile,
+                            short fallback) {
+  return tui_color_index(app_ui_theme_pick(scheme, role, mode), profile,
+                         fallback);
+}
+
+static void tui_init_programmable_pairs(const app_ui_color_scheme_t *scheme,
+                                        app_ui_theme_mode_id mode, short bg) {
+  tui_define_rgb_palette(scheme, mode);
+  init_pair(TUI_COLOR_HIGHLIGHT, TUI_RGB_SELECTION_FG, TUI_RGB_SELECTION_BG);
+  init_pair(TUI_COLOR_ERROR, TUI_RGB_ERROR, bg);
+  init_pair(TUI_COLOR_SUCCESS, TUI_RGB_SUCCESS, bg);
+  init_pair(TUI_COLOR_WARNING, TUI_RGB_WARNING, bg);
+  init_pair(TUI_COLOR_INFO, TUI_RGB_INFO, bg);
+  init_pair(TUI_COLOR_MENU_NORMAL, TUI_RGB_TEXT, bg);
+  init_pair(TUI_COLOR_BORDER, TUI_RGB_MUTED, bg);
+  init_pair(TUI_COLOR_TITLE, TUI_RGB_TITLE, bg);
+  init_pair(TUI_COLOR_ACCENT, TUI_RGB_ACCENT, bg);
+  init_pair(TUI_COLOR_DIM, TUI_RGB_MUTED, bg);
+}
+
+static void tui_init_indexed_pairs(const app_ui_color_scheme_t *scheme,
+                                   app_ui_theme_mode_id mode,
+                                   app_cli_color_profile_id profile, short bg) {
+  const short text = tui_role_index(scheme, mode, APP_UI_ROLE_TEXT, profile,
+                                    tui_default_fg());
+  const short title = tui_role_index(scheme, mode, APP_UI_ROLE_TITLE, profile,
+                                     COLOR_YELLOW);
+  const short accent = tui_role_index(scheme, mode, APP_UI_ROLE_ACCENT, profile,
+                                      COLOR_YELLOW);
+  const short muted = tui_role_index(scheme, mode, APP_UI_ROLE_MUTED, profile,
+                                     COLOR_WHITE);
+  init_pair(TUI_COLOR_HIGHLIGHT,
+            tui_role_index(scheme, mode, APP_UI_ROLE_SELECTION_FG, profile,
+                           COLOR_BLACK),
+            tui_role_index(scheme, mode, APP_UI_ROLE_SELECTION_BG, profile,
+                           COLOR_YELLOW));
+  init_pair(TUI_COLOR_ERROR,
+            tui_role_index(scheme, mode, APP_UI_ROLE_ERROR_DETAILS, profile,
+                           COLOR_RED),
+            bg);
+  init_pair(TUI_COLOR_SUCCESS,
+            tui_role_index(scheme, mode, APP_UI_ROLE_SUCCESS, profile,
+                           COLOR_GREEN),
+            bg);
+  init_pair(TUI_COLOR_WARNING,
+            tui_role_index(scheme, mode, APP_UI_ROLE_WARNING, profile,
+                           COLOR_YELLOW),
+            bg);
+  init_pair(TUI_COLOR_INFO,
+            tui_role_index(scheme, mode, APP_UI_ROLE_INFO, profile, COLOR_BLUE),
+            bg);
+  init_pair(TUI_COLOR_MENU_NORMAL, text, bg);
+  init_pair(TUI_COLOR_BORDER,
+            tui_role_index(scheme, mode, APP_UI_ROLE_BORDER, profile, muted),
+            bg);
+  init_pair(TUI_COLOR_TITLE, title, bg);
+  init_pair(TUI_COLOR_ACCENT, accent, bg);
+  init_pair(TUI_COLOR_DIM, muted, bg);
 }
 
 app_error tui_init_colors(void) {
@@ -366,37 +551,25 @@ app_error tui_init_colors(void) {
     return APP_SUCCESS;
   }
 
+  app_ui_color_scheme_t scheme = *app_ui_theme_default_scheme();
+  app_ui_theme_apply_env_overrides(&scheme);
+  const app_ui_theme_mode_id mode = tui_resolve_theme_mode();
+  const app_cli_color_profile_id requested = tui_requested_color_profile();
   const short bg = tui_default_bg();
 
-  if (tui_palette_is_truecolor()) {
-    tui_define_rgb_palette();
-    init_pair(TUI_COLOR_HIGHLIGHT, COLOR_BLACK, TUI_RGB_AMBER);
-    init_pair(TUI_COLOR_ERROR, COLOR_RED, bg);
-    init_pair(TUI_COLOR_SUCCESS, TUI_RGB_GREEN, bg);
-    init_pair(TUI_COLOR_WARNING, TUI_RGB_AMBER, bg);
-    init_pair(TUI_COLOR_INFO, TUI_RGB_AMBER, bg);
-    init_pair(TUI_COLOR_MENU_NORMAL, TUI_RGB_FG, bg);
-    init_pair(TUI_COLOR_BORDER, TUI_RGB_MUTED, bg);
-    init_pair(TUI_COLOR_TITLE, TUI_RGB_FG, bg);
-    init_pair(TUI_COLOR_ACCENT, TUI_RGB_AMBER, bg);
-    init_pair(TUI_COLOR_DIM, TUI_RGB_MUTED, bg);
+  if ((requested == APP_CLI_COLOR_PROFILE_NONE ||
+       requested == APP_CLI_COLOR_PROFILE_TRUECOLOR) &&
+      !tui_accent_override_is_indexed() && tui_palette_is_programmable()) {
+    tui_init_programmable_pairs(&scheme, mode, bg);
     return APP_SUCCESS;
   }
 
-  /* Fallback: warm mapping over the 8 base colors (amber -> yellow, a
-   * calmer blue selection bar instead of loud cyan). */
-  const short default_fg = tui_default_fg();
-  init_pair(TUI_COLOR_HIGHLIGHT, COLOR_BLACK, COLOR_WHITE);
-  init_pair(TUI_COLOR_ERROR, COLOR_RED, bg);
-  init_pair(TUI_COLOR_SUCCESS, COLOR_GREEN, bg);
-  init_pair(TUI_COLOR_WARNING, COLOR_YELLOW, bg);
-  init_pair(TUI_COLOR_INFO, COLOR_YELLOW, bg);
-  init_pair(TUI_COLOR_MENU_NORMAL, default_fg, bg);
-  init_pair(TUI_COLOR_BORDER, COLOR_BLUE, bg);
-  init_pair(TUI_COLOR_TITLE, default_fg, bg);
-  init_pair(TUI_COLOR_ACCENT, COLOR_YELLOW, bg);
-  init_pair(TUI_COLOR_DIM, COLOR_WHITE, bg);
+  if (requested != APP_CLI_COLOR_PROFILE_ANSI16 && COLORS >= 256) {
+    tui_init_indexed_pairs(&scheme, mode, APP_CLI_COLOR_PROFILE_ANSI256, bg);
+    return APP_SUCCESS;
+  }
 
+  tui_init_indexed_pairs(&scheme, mode, APP_CLI_COLOR_PROFILE_ANSI16, bg);
   return APP_SUCCESS;
 }
 

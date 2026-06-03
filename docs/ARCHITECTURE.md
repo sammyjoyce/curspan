@@ -29,9 +29,11 @@ graph TD
     CLI --> CMD["cli/commands_*.c - handlers"]
     CMD --> CORE["core/ - config, errors"]
     CMD --> IO["io/ - text + JSON output"]
+    CLI --> STYLE["style/ - shared UI roles"]
     MAIN -. "bare TTY" .-> TUI["tui/ - ncurses"]
     CMD -. "menu, doctor --deep" .-> TUI
-    CORE --> UTILS["utils/ - logging, colors, memory"]
+    TUI --> STYLE
+    CORE --> UTILS["utils/ - logging, color policy, memory"]
     IO --> TERM[stdout / stderr]
     TUI --> CURSES[ncurses / pdcurses]
 ```
@@ -46,8 +48,9 @@ Each directory under `src/` owns one concern. The functions below are representa
 | `core` | `app_info.c`, `diagnostics.c`, `config.c`, `config_json.c`, `request_json.c`, `error.c`, `types.h` | Build/feature metadata, diagnostic checks, layered configuration, config/headless JSON readers, the flag table, and typed errors | `app_build_info()`, `app_feature_table()`, `app_diagnostics_collect()`, `app_config_create()`, `app_request_parse_json()`, `app_strerror()` |
 | `io` | `input.c`, `output.c`, `terminal.c` | Read stdin/files; write human text and versioned JSON; answer basic curses-free terminal facts | `app_read_input_from_stdin()`, `app_output()`, `app_json_write_string()`, `app_terminal_is_interactive()` |
 | `ui` | `action_item.c`, `text_layout.c` | Curses-free UI primitives. `text_layout.c` (text width/truncation/wrapping) is live and shared by the CLI and TUI renderers. `action_item.c` (selectable action descriptors) is a live shared seam: `app_actions_from_commands()` projects the CLI command table into curses-free descriptors, and the TUI's **Commands** screen (`tui/tui_app.c`) builds its menu rows from those descriptors via the adapter below — so this primitive is on the production path. | `app_text_width_utf8()`, `app_text_truncate_utf8_columns()`, `app_actions_from_commands()` |
-| `tui` | `tui.c`, `tui_menu.c`, `tui_menu_adapter.c`, `tui_menu_model.c`, `tui_progress.c`, `tui_app.c` | ncurses lifecycle, modal menus, progress bars, and the demo showcase (compiled by default unless `-Denable-tui=false`). `tui_menu_adapter.c` converts each curses-free `app_action_item_t` into a `tui_menu_item_t`; the showcase's **Commands** screen uses it to render CLI command metadata as menu rows. | `tui_init()`, `tui_cleanup()`, `tui_show_menu()`, `tui_menu_item_from_action()`, `tui_progress_create()` |
-| `utils` | `colors.c`, `logging.c`, `memory.c` | Cross-cutting helpers: color setup, leveled logging, secret zeroing | `app_log_init()`, `app_secret_zero()` |
+| `style` | `design_tokens.c`, `ui_theme.c`, `color_math.c` | Curses-free visual primitives shared by the styled CLI and generated TUI: raw RGB design tokens, semantic UI roles, accent parsing, and RGB→ANSI degradation. CLI SGR tokens and TUI color pairs are renderer adapters over these roles. | `APP_DESIGN_PALETTE`, `app_ui_theme_default_scheme()`, `app_ui_theme_apply_env_overrides()`, `app_color_rgb_to_xterm256()` |
+| `tui` | `tui.c`, `tui_menu.c`, `tui_menu_adapter.c`, `tui_menu_model.c`, `tui_progress.c`, `tui_app.c` | ncurses lifecycle, modal menus, progress bars, and the demo showcase (compiled by default unless `-Denable-tui=false`). `tui_menu_adapter.c` converts each curses-free `app_action_item_t` into a `tui_menu_item_t`; the showcase's **Commands** screen uses it to render CLI command metadata as menu rows. TUI colors are realized from shared `style` roles through curses palette/pair fallbacks. | `tui_init()`, `tui_cleanup()`, `tui_show_menu()`, `tui_menu_item_from_action()`, `tui_progress_create()` |
+| `utils` | `colors.c`, `logging.c`, `memory.c` | Cross-cutting helpers: color-policy env parsing, leveled logging, secret zeroing | `app_log_init()`, `app_color_env_force()`, `app_secret_zero()` |
 
 The command table is the seam to extend. `commands.c` registers the built-in commands,
 and each lives in its own file (`commands_basic.c` for `hello`/`echo`, plus
@@ -80,8 +83,9 @@ Pass `-Denable-tui=false` to skip those sources. A separate `tui-menu-lib` step 
 primitive as a static library with installed headers.
 
 The two front-ends are independent build axes: the shared UI primitives (text
-layout, design tokens) compile whenever *either* the TUI or the CLI styling
-layer is enabled, so every combination links. A stripped `ReleaseSafe` binary
+layout, color math, design tokens, and semantic UI theme roles) compile whenever
+*either* the TUI or the CLI styling layer is enabled, so every combination
+links. A stripped `ReleaseSafe` binary
 ranges from ~139 KB (full TUI + styling) down to a ~68 KB libc-only build with
 both front-ends off; see the [footprint matrix](ZIG_PRIMER.md#binary-footprint).
 

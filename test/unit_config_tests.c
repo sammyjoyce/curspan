@@ -142,6 +142,25 @@ static bool test_use_colors_no_color_beats_force_color(void) {
   free(save_fc);
   return ok;
 }
+
+static bool test_use_colors_honors_cli_color_never(void) {
+  char *save_color = cfg_env_dup("APP_CLI_COLOR");
+  char *save_fc = cfg_env_dup("FORCE_COLOR");
+  char *save_nc = cfg_env_dup("NO_COLOR");
+
+  cfg_env_set("NO_COLOR", NULL);
+  cfg_env_set("FORCE_COLOR", "1");
+  cfg_env_set("APP_CLI_COLOR", "never");
+  const bool ok = !app_use_colors(NULL);
+
+  cfg_env_set("APP_CLI_COLOR", save_color);
+  cfg_env_set("FORCE_COLOR", save_fc);
+  cfg_env_set("NO_COLOR", save_nc);
+  free(save_color);
+  free(save_fc);
+  free(save_nc);
+  return ok;
+}
 #endif
 
 static bool test_strerror_covers_every_code(void) {
@@ -510,6 +529,8 @@ void run_config_unit_tests(unit_stats_t *stats) {
               "color env resolver follows FORCE_COLOR/CLICOLOR conventions");
   unit_record(stats, test_use_colors_no_color_beats_force_color(),
               "NO_COLOR beats FORCE_COLOR=1 in app_use_colors");
+  unit_record(stats, test_use_colors_honors_cli_color_never(),
+              "APP_CLI_COLOR=never disables app_use_colors");
   unit_record(stats, test_config_load_reports_not_found(),
               "config load maps a missing explicit path to NOT_FOUND");
   unit_record(stats, test_config_load_reports_permission(),
