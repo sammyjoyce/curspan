@@ -78,7 +78,7 @@
         in
         {
           default = pkgs.mkShell {
-            name = "c23-cli-template";
+            name = "curspan";
 
             packages = projectTooling;
 

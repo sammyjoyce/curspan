@@ -105,11 +105,11 @@ failure.
 ```text
 zig-out/lib/libtui-menu.a
 zig-out/lib/pkgconfig/tui-menu.pc
-zig-out/include/c23-cli-template/core/error.h
-zig-out/include/c23-cli-template/core/types.h
-zig-out/include/c23-cli-template/tui/tui.h
-zig-out/include/c23-cli-template/tui/tui_menu.h
-zig-out/include/c23-cli-template/tui/tui_progress.h
+zig-out/include/curspan/core/error.h
+zig-out/include/curspan/core/types.h
+zig-out/include/curspan/tui/tui.h
+zig-out/include/curspan/tui/tui_menu.h
+zig-out/include/curspan/tui/tui_progress.h
 ```
 
 **Supported:**

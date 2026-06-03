@@ -439,7 +439,7 @@ jobs:
     name: Validate Template
     runs-on: ${{ vars.CI_LINUX_RUNNER || 'ubuntu-latest' }}
     # Skip validation for the template repository itself
-    if: github.repository != 'sammyjoyce/c23-cli-template'
+    if: github.repository != 'sammyjoyce/curspan'
 
     steps:
       - name: Check out repository

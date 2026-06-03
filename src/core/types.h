@@ -58,7 +58,7 @@ typedef struct {
 
 // Human-readable application title and description
 #ifndef APP_TITLE
-#define APP_TITLE "C23 TUI + CLI Starter"
+#define APP_TITLE "Curspan"
 #endif
 
 #ifndef APP_DESCRIPTION

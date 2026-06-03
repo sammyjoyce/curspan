@@ -1,6 +1,6 @@
 # Template Usage Guide
 
-This guide covers creating a project from `sammyjoyce/c23-cli-template` and cleaning up the template-specific files.
+This guide covers creating a project from `sammyjoyce/curspan` and cleaning up the template-specific files.
 
 ## Create A Repository
 
@@ -15,7 +15,7 @@ This guide covers creating a project from `sammyjoyce/c23-cli-template` and clea
 
 ```bash
 gh repo create my-cli \
-  --template sammyjoyce/c23-cli-template \
+  --template sammyjoyce/curspan \
   --public \
   --clone
 cd my-cli

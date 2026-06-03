@@ -1,7 +1,7 @@
 {
   "variables": {
     "PROJECT_NAME": {
-      "placeholders": ["C23 TUI + CLI Starter"],
+      "placeholders": ["Curspan"],
       "description": "Human-readable project name shown in documentation, metadata, and headings.",
       "sources": ["repository_name"],
       "validation": "^[A-Za-z][A-Za-z0-9 _-]*$"
@@ -101,19 +101,19 @@
       "Copyright (c) 2026": "Copyright (c) ${CURRENT_YEAR}"
     },
     "build.zig": {
-      "include/c23-cli-template/": "include/${PROJECT_NAME_KEBAB}/"
+      "include/curspan/": "include/${PROJECT_NAME_KEBAB}/"
     },
     "build.zig.zon": {
       ".myapp": ".${PROJECT_NAME_SNAKE}"
     },
     "docs/CONTRACTS.md": {
-      "include/c23-cli-template/": "include/${PROJECT_NAME_KEBAB}/"
+      "include/curspan/": "include/${PROJECT_NAME_KEBAB}/"
     },
     "flake.nix": {
-      "name = \"c23-cli-template\";": "name = \"${PROJECT_NAME_KEBAB}\";"
+      "name = \"curspan\";": "name = \"${PROJECT_NAME_KEBAB}\";"
     },
     "opencli.json": {
-      "C23 TUI + CLI Starter": "${PROJECT_NAME}",
+      "Curspan": "${PROJECT_NAME}",
       "A ready-to-use C23 starter for command-line tools and ncurses terminal UIs.": "${PROJECT_DESCRIPTION}",
       "Your Name": "${AUTHOR_NAME}",
       "https://github.com/yourusername/yourproject": "${PROJECT_URL}",

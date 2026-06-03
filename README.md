@@ -1,17 +1,17 @@
-# C23 TUI + CLI Starter Template - Zig + ncurses
+# Curspan — a C23 TUI + CLI framework (Zig + ncurses)
 
-[![GitHub Release](https://img.shields.io/github/v/release/sammyjoyce/c23-cli-template?style=for-the-badge)](https://github.com/sammyjoyce/c23-cli-template)
-[![License](https://img.shields.io/github/license/sammyjoyce/c23-cli-template?style=for-the-badge)](https://github.com/sammyjoyce/c23-cli-template/blob/main/LICENSE)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/sammyjoyce/c23-cli-template/ci.yaml?style=for-the-badge&label=CI)](https://github.com/sammyjoyce/c23-cli-template/actions/workflows/ci.yaml)
+[![GitHub Release](https://img.shields.io/github/v/release/sammyjoyce/curspan?style=for-the-badge)](https://github.com/sammyjoyce/curspan)
+[![License](https://img.shields.io/github/license/sammyjoyce/curspan?style=for-the-badge)](https://github.com/sammyjoyce/curspan/blob/main/LICENSE)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/sammyjoyce/curspan/ci.yaml?style=for-the-badge&label=CI)](https://github.com/sammyjoyce/curspan/actions/workflows/ci.yaml)
 [![Zig](https://img.shields.io/badge/Zig-0.16.0-F7A41D?style=for-the-badge&logo=zig)](https://ziglang.org/)
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sammyjoyce/c23-cli-template?style=for-the-badge&label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/sammyjoyce/c23-cli-template)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sammyjoyce/curspan?style=for-the-badge&label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/sammyjoyce/curspan)
 
 A ready-to-use C23 starter for command-line tools and terminal UIs. Click **Use this
 template**, run the cleanup script, and you have a cross-compiling C project with
 argument parsing, a default ncurses TUI, end-to-end tests, and a GitHub
 Actions CI/CD scaffold.
 
-[Use this template](https://github.com/sammyjoyce/c23-cli-template/generate) • [Read the setup guide](.template/TEMPLATE_USAGE.md) • [Report a template issue](https://github.com/sammyjoyce/c23-cli-template/issues)
+[Use this template](https://github.com/sammyjoyce/curspan/generate) • [Read the setup guide](.template/TEMPLATE_USAGE.md) • [Report a template issue](https://github.com/sammyjoyce/curspan/issues)
 
 ---
 
@@ -31,7 +31,7 @@ Actions CI/CD scaffold.
 
 #### Option 1: GitHub UI
 
-1. Click ["Use this template"](https://github.com/sammyjoyce/c23-cli-template/generate)
+1. Click ["Use this template"](https://github.com/sammyjoyce/curspan/generate)
 2. Name your repository
 3. Click "Create repository"
 
@@ -39,7 +39,7 @@ Actions CI/CD scaffold.
 
 ```bash
 gh repo create my-cli \
-  --template sammyjoyce/c23-cli-template \
+  --template sammyjoyce/curspan \
   --public \
   --clone
 ```
@@ -285,7 +285,7 @@ Start with [**Using This Template**](.template/TEMPLATE_USAGE.md) for the full s
 
 For problems with the template itself:
 
-- Check [existing issues](https://github.com/sammyjoyce/c23-cli-template/issues)
+- Check [existing issues](https://github.com/sammyjoyce/curspan/issues)
 - Create a new issue
 - Read [template support](.template/TEMPLATE_SUPPORT.md)
 
@@ -307,4 +307,4 @@ When you use this template, you can choose any license for your project.
 
 **Ready to build your CLI app?**
 
-[![Use this template](https://img.shields.io/badge/Use%20this-template-success?style=for-the-badge&logo=github)](https://github.com/sammyjoyce/c23-cli-template/generate)
+[![Use this template](https://img.shields.io/badge/Use%20this-template-success?style=for-the-badge&logo=github)](https://github.com/sammyjoyce/curspan/generate)

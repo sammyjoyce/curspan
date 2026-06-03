@@ -142,7 +142,7 @@ get_prompt() {
 
 if (( non_interactive == 0 )); then
     require_command gum
-    gum style --border normal --padding "1 2" --border-foreground 212 "C23 TUI + CLI Template Setup"
+    gum style --border normal --padding "1 2" --border-foreground 212 "Curspan Setup"
 
     export PROJECT_NAME
     PROJECT_NAME=$(gum input --value "${PROJECT_NAME:-$(get_default PROJECT_NAME)}" --placeholder "$(get_prompt PROJECT_NAME)")
