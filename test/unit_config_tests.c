@@ -431,7 +431,7 @@ static bool test_config_load_reports_not_found(void) {
     return false;
   }
   const app_error err =
-      app_config_load_file(config, "/nonexistent/curspan-xyz.json");
+      app_config_load_file(config, "/nonexistent/myapp-xyz.json");
   app_config_destroy(config);
   return err == APP_ERROR_NOT_FOUND;
 }

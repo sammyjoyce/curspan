@@ -80,7 +80,9 @@
     "*.txt",
     "LICENSE*",
     "Makefile",
-    "CMakeLists.txt"
+    "CMakeLists.txt",
+    "justfile",
+    "Justfile"
   ],
   "exclude_patterns": [
     ".git/*",

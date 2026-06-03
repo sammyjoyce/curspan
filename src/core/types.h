@@ -62,9 +62,10 @@ typedef struct {
 #endif
 
 #ifndef APP_DESCRIPTION
-#define APP_DESCRIPTION                                                     \
-  "A ready-to-use C23 starter for command-line tools and ncurses terminal " \
-  "UIs."
+// clang-format off
+#define APP_DESCRIPTION \
+  "A ready-to-use C23 starter for command-line tools and ncurses terminal UIs."
+// clang-format on
 #endif
 
 // Build date - should be provided by build system
