@@ -18,7 +18,8 @@ cs_mode_t cs_theme_mode_resolve(void) {
   return CS_MODE_DARK;
 }
 
-void cs_theme_set_role(cs_theme_t *theme, cs_role_t role, app_ui_color_t color) {
+void cs_theme_set_role(cs_theme_t *theme, cs_role_t role,
+                       app_ui_color_t color) {
   if (!theme || role < 0 || role >= APP_UI_ROLE_COUNT) {
     return;
   }
@@ -36,7 +37,8 @@ bool cs_theme_set_role_spec(cs_theme_t *theme, cs_role_t role,
   return true;
 }
 
-app_ui_resolved_color_t cs_theme_resolve(const cs_theme_t *theme, cs_role_t role,
+app_ui_resolved_color_t cs_theme_resolve(const cs_theme_t *theme,
+                                         cs_role_t role,
                                          app_cli_color_profile_id profile,
                                          int color_count) {
   if (!theme) {
@@ -61,7 +63,7 @@ static app_ui_color_t mono_ansi16(uint8_t index) {
 
 static void cs_theme_make_mono(app_ui_color_scheme_t *scheme) {
   for (int role = 0; role < APP_UI_ROLE_COUNT; role++) {
-    uint8_t fg = 7; // white by default
+    uint8_t fg = 7;  // white by default
     switch (role) {
     case APP_UI_ROLE_MUTED:
     case APP_UI_ROLE_COMMENT:
@@ -70,21 +72,21 @@ static void cs_theme_make_mono(app_ui_color_scheme_t *scheme) {
     case APP_UI_ROLE_BORDER:
     case APP_UI_ROLE_PANEL:
     case APP_UI_ROLE_PANEL_ALT:
-      fg = 8; // bright black (gray)
+      fg = 8;  // bright black (gray)
       break;
     case APP_UI_ROLE_ERROR_HEADER_FG:
     case APP_UI_ROLE_SELECTION_FG:
-      fg = 0; // black text for the inverted bars below
+      fg = 0;  // black text for the inverted bars below
       break;
     case APP_UI_ROLE_ERROR_HEADER_BG:
     case APP_UI_ROLE_SELECTION_BG:
-      fg = 7; // white bar
+      fg = 7;  // white bar
       break;
     case APP_UI_ROLE_TITLE:
     case APP_UI_ROLE_PROGRAM:
     case APP_UI_ROLE_ACCENT:
     case APP_UI_ROLE_HELP:
-      fg = 15; // bright white for emphasis
+      fg = 15;  // bright white for emphasis
       break;
     default:
       fg = 7;

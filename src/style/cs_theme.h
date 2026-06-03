@@ -6,15 +6,16 @@
  *   2. semantic roles  — named, adaptive {dark,light} colors (ui_theme.h)
  *   3. themes          — a named, overridable bundle of roles + a mode
  *
- * A cs_theme_t is the value components and surfaces consume. Built-in themes are
- * resolvable by name; any role can be overridden; the active light/dark mode is
- * resolved from the environment. This is the terminal-UI analogue of a ShadCN
- * CSS-variable theme: every component styles itself through these roles, never
- * through hard-coded colors, so re-theming an app is a one-line change.
+ * A cs_theme_t is the value components and surfaces consume. Built-in themes
+ * are resolvable by name; any role can be overridden; the active light/dark
+ * mode is resolved from the environment. This is the terminal-UI analogue of a
+ * ShadCN CSS-variable theme: every component styles itself through these roles,
+ * never through hard-coded colors, so re-theming an app is a one-line change.
  *
  * This is an additive public surface over the existing app_ui_* internals; the
- * default theme is the same amber-on-near-black identity the CLI and TUI already
- * share, and the APP_CLI_THEME / APP_CLI_ACCENT environment contract is honored.
+ * default theme is the same amber-on-near-black identity the CLI and TUI
+ * already share, and the APP_CLI_THEME / APP_CLI_ACCENT environment contract is
+ * honored.
  */
 
 #pragma once
@@ -49,9 +50,9 @@ typedef app_ui_theme_mode_id cs_mode_t;
 #define CS_MODE_LIGHT APP_UI_THEME_MODE_LIGHT
 
 typedef struct cs_theme {
-  app_ui_color_scheme_t scheme; // the role table (by value, ~copyable)
-  cs_mode_t mode;               // active light/dark mode
-  const char *name;             // built-in name, or "custom"
+  app_ui_color_scheme_t scheme;  // the role table (by value, ~copyable)
+  cs_mode_t mode;                // active light/dark mode
+  const char *name;              // built-in name, or "custom"
 } cs_theme_t;
 
 // The default theme ("amber"): the shared amber-on-near-black identity, with
@@ -77,9 +78,11 @@ void cs_theme_set_role(cs_theme_t *theme, cs_role_t role, app_ui_color_t color);
 
 // Parse "#rrggbb" / "rrggbb" / decimal ANSI index and override a role. Returns
 // false on a malformed spec (leaving the theme unchanged).
-bool cs_theme_set_role_spec(cs_theme_t *theme, cs_role_t role, const char *spec);
+bool cs_theme_set_role_spec(cs_theme_t *theme, cs_role_t role,
+                            const char *spec);
 
 // Resolve a role in this theme to a concrete color for a terminal profile.
-app_ui_resolved_color_t cs_theme_resolve(const cs_theme_t *theme, cs_role_t role,
+app_ui_resolved_color_t cs_theme_resolve(const cs_theme_t *theme,
+                                         cs_role_t role,
                                          app_cli_color_profile_id profile,
                                          int color_count);

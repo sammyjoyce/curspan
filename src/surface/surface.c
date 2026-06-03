@@ -3,14 +3,14 @@
  *
  * This translation unit is linked into every build that has either front-end.
  * It contains NO curses code; the curses backend lives in surface_curses.c and
- * is reached only through the ops vtable, so a CLI-only or unit-test build links
- * this file without pulling in ncurses.
+ * is reached only through the ops vtable, so a CLI-only or unit-test build
+ * links this file without pulling in ncurses.
  */
-
-#include "surface_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#include "surface_internal.h"
 
 cs_surface_t *cs_surface_alloc_(const cs_theme_t *theme) {
   cs_surface_t *s = calloc(1, sizeof *s);
@@ -89,7 +89,7 @@ static void stream_newline(cs_surface_t *s) {
 static void stream_move(cs_surface_t *s, int x, int y) {
   (void)s;
   (void)x;
-  (void)y; // a stream flows top-to-bottom; positioning is a no-op
+  (void)y;  // a stream flows top-to-bottom; positioning is a no-op
 }
 
 static void stream_destroy(cs_surface_t *s) {
@@ -135,9 +135,8 @@ cs_surface_t *cs_surface_stream_new(FILE *stream, const app_config_t *config,
   };
 #else
   (void)config;
-  s->caps = (cs_caps_t){.unicode = true,
-                        .profile = APP_CLI_COLOR_PROFILE_NONE,
-                        .width = 80};
+  s->caps = (cs_caps_t){
+      .unicode = true, .profile = APP_CLI_COLOR_PROFILE_NONE, .width = 80};
 #endif
   return s;
 }

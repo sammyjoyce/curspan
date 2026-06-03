@@ -442,6 +442,17 @@ pub fn build(b: *std.Build) void {
         // with the TUI sources below.
         "src/style/cs_theme.c",
         "src/surface/surface.c",
+        // Component catalog: each renders through cs_surface, so the same
+        // component works on a CLI stream and a TUI window.
+        "src/components/cs_rule.c",
+        "src/components/cs_heading.c",
+        "src/components/cs_badge.c",
+        "src/components/cs_note.c",
+        "src/components/cs_keyvalue.c",
+        "src/components/cs_list.c",
+        "src/components/cs_table.c",
+        "src/components/cs_progress.c",
+        "src/components/cs_spinner.c",
     };
 
     // CLI styling sources (cli/style renderers). The terminal backend is chosen
@@ -703,6 +714,17 @@ pub fn build(b: *std.Build) void {
             // backend in surface.c is curses-free.
             "src/style/cs_theme.c",
             "src/surface/surface.c",
+            // Component catalog under test (rendered to a non-TTY stream).
+            "src/components/cs_rule.c",
+            "src/components/cs_heading.c",
+            "src/components/cs_badge.c",
+            "src/components/cs_note.c",
+            "src/components/cs_keyvalue.c",
+            "src/components/cs_list.c",
+            "src/components/cs_table.c",
+            "src/components/cs_progress.c",
+            "src/components/cs_spinner.c",
+            "test/unit_components_tests.c",
             "src/cli/style/cli_term.c",
             "src/cli/style/cli_term_osc11.c",
             "src/cli/style/cli_term_ansi.c",

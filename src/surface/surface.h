@@ -30,8 +30,8 @@
 typedef struct app_config app_config_t;
 typedef struct tui_window tui_window_t;
 
-// Text attributes (bit mask). Bit positions mirror the CLI attribute bits so the
-// stream backend maps them directly; the curses backend maps to A_BOLD etc.
+// Text attributes (bit mask). Bit positions mirror the CLI attribute bits so
+// the stream backend maps them directly; the curses backend maps to A_BOLD etc.
 typedef uint32_t cs_attr_t;
 enum {
   CS_ATTR_NONE = 0,
@@ -83,8 +83,9 @@ void cs_surface_set_attr(cs_surface_t *s, cs_attr_t attrs);
 void cs_surface_reset(cs_surface_t *s);
 
 // Output. Writes are UTF-8. repeat() emits `glyph` `count` times (for rules and
-// padding); newline() moves to the next row at the left margin; move() positions
-// the cursor (curses only — a no-op on a stream, which flows top-to-bottom).
+// padding); newline() moves to the next row at the left margin; move()
+// positions the cursor (curses only — a no-op on a stream, which flows
+// top-to-bottom).
 void cs_surface_write(cs_surface_t *s, const char *utf8);
 void cs_surface_write_n(cs_surface_t *s, const char *utf8, size_t n);
 void cs_surface_repeat(cs_surface_t *s, const char *glyph, size_t count);

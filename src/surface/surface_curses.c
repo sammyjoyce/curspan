@@ -62,7 +62,7 @@ static WINDOW *curses_win(cs_surface_t *s) {
 }
 
 static void curses_set_color(cs_surface_t *s, cs_role_t role, bool bg) {
-  (void)bg; // pairs fix fg+bg together; see cs_surface_set_role_bg
+  (void)bg;  // pairs fix fg+bg together; see cs_surface_set_role_bg
   WINDOW *w = curses_win(s);
   if (w && tui_colors_enabled()) {
     wattron(w, COLOR_PAIR(cs_role_to_pair(role)));
@@ -123,7 +123,7 @@ static void curses_move(cs_surface_t *s, int x, int y) {
 }
 
 static void curses_destroy(cs_surface_t *s) {
-  (void)s; // the window is owned by the caller
+  (void)s;  // the window is owned by the caller
 }
 
 static const cs_surface_ops_t cs_curses_ops = {
@@ -159,4 +159,4 @@ cs_surface_t *cs_surface_curses_new(tui_window_t *window,
   return s;
 }
 
-#endif // ENABLE_TUI
+#endif  // ENABLE_TUI

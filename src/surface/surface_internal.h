@@ -27,7 +27,7 @@ typedef struct cs_surface_ops {
   void (*write_n)(cs_surface_t *s, const char *text, size_t n);
   void (*newline)(cs_surface_t *s);
   void (*move)(cs_surface_t *s, int x, int y);
-  void (*destroy)(cs_surface_t *s); // backend teardown before free()
+  void (*destroy)(cs_surface_t *s);  // backend teardown before free()
 } cs_surface_ops_t;
 
 struct cs_surface {
@@ -35,13 +35,13 @@ struct cs_surface {
   cs_theme_t theme;
   cs_caps_t caps;
 
-  FILE *stream_fp; // stream backend
+  FILE *stream_fp;  // stream backend
 #ifdef APP_ENABLE_CLI_STYLE
   app_cli_term_t term;
   bool have_term;
 #endif
 
-  tui_window_t *window; // curses backend
+  tui_window_t *window;  // curses backend
 };
 
 // Allocate a zeroed surface with the theme copied in. Returns NULL on OOM.

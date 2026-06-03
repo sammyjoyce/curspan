@@ -1,0 +1,150 @@
+/*
+ * cs_table — columnar table. See cs_table.h.
+ */
+
+#include "cs_table.h"
+
+#include <stdlib.h>
+
+#include "../ui/text_layout.h"
+#include "cs_glyphs.h"
+
+static const char *cs_table_cell(const cs_table_t *t, size_t row, size_t col) {
+  const char *c = t->cells[row * t->column_count + col];
+  return c ? c : "";
+}
+
+// Write `text` truncated to `col_width` columns, padded to fill the column,
+// honoring alignment.
+static void cs_table_write_cell(cs_surface_t *s, cs_role_t role,
+                                const char *text, int col_width,
+                                cs_align_t align) {
+  int used = 0;
+  size_t bytes = app_text_truncate_utf8_columns(text, col_width, &used);
+  int pad = col_width - used;
+  if (pad < 0) {
+    pad = 0;
+  }
+
+  if (align == CS_ALIGN_RIGHT) {
+    for (int i = 0; i < pad; i++) {
+      cs_surface_write(s, " ");
+    }
+  }
+  cs_surface_set_role(s, role);
+  cs_surface_write_n(s, text, bytes);
+  cs_surface_reset(s);
+  if (align == CS_ALIGN_LEFT) {
+    for (int i = 0; i < pad; i++) {
+      cs_surface_write(s, " ");
+    }
+  }
+}
+
+void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
+  if (!table || !s || !table->columns || table->column_count == 0) {
+    return;
+  }
+  const size_t ncol = table->column_count;
+  cs_caps_t caps = cs_surface_caps(s);
+  cs_role_t header_role =
+      table->header_role ? table->header_role : CS_ROLE_TITLE;
+  cs_role_t text_role = table->text_role ? table->text_role : CS_ROLE_TEXT;
+  cs_role_t border_role =
+      table->border_role ? table->border_role : CS_ROLE_BORDER;
+  const char *gap = table->gap ? table->gap : "  ";
+  int gap_cols = app_text_width_utf8(gap);
+  size_t budget = table->width ? table->width : cs_surface_width(s);
+  if (budget == 0) {
+    budget = 80;
+  }
+
+  int *widths = malloc(ncol * sizeof(int));
+  if (!widths) {
+    return;
+  }
+
+  // Natural width per column: max(header, cells), capped by max_width.
+  for (size_t c = 0; c < ncol; c++) {
+    int w = table->header
+                ? app_text_width_utf8(
+                      table->columns[c].header ? table->columns[c].header : "")
+                : 0;
+    for (size_t r = 0; r < table->row_count; r++) {
+      int cw = app_text_width_utf8(cs_table_cell(table, r, c));
+      if (cw > w) {
+        w = cw;
+      }
+    }
+    if (w < 1) {
+      w = 1;
+    }
+    if (table->columns[c].max_width > 0 && w > table->columns[c].max_width) {
+      w = table->columns[c].max_width;
+    }
+    widths[c] = w;
+  }
+
+  // Shrink proportionally if the row overflows the budget.
+  int gaps_total = (ncol > 1) ? (int)(ncol - 1) * gap_cols : 0;
+  int content_budget = (int)budget - gaps_total;
+  if (content_budget < (int)ncol) {
+    content_budget = (int)ncol;  // at least 1 column per cell
+  }
+  int sum = 0;
+  for (size_t c = 0; c < ncol; c++) {
+    sum += widths[c];
+  }
+  if (sum > content_budget) {
+    int remaining = content_budget;
+    for (size_t c = 0; c < ncol; c++) {
+      int scaled = (int)((long)widths[c] * content_budget / sum);
+      if (scaled < 1) {
+        scaled = 1;
+      }
+      widths[c] = scaled;
+      remaining -= scaled;
+    }
+    // Hand any rounding leftover to the first column.
+    if (remaining > 0) {
+      widths[0] += remaining;
+    }
+  }
+
+  int total = gaps_total;
+  for (size_t c = 0; c < ncol; c++) {
+    total += widths[c];
+  }
+
+  // Header row + separator.
+  if (table->header) {
+    for (size_t c = 0; c < ncol; c++) {
+      if (c > 0) {
+        cs_surface_write(s, gap);
+      }
+      const char *h = table->columns[c].header ? table->columns[c].header : "";
+      cs_surface_set_attr(s, CS_ATTR_BOLD);
+      cs_table_write_cell(s, header_role, h, widths[c],
+                          table->columns[c].align);
+    }
+    cs_surface_newline(s);
+    cs_surface_set_role(s, border_role);
+    cs_surface_repeat(s, cs_glyph_hline(caps.unicode), (size_t)total);
+    cs_surface_reset(s);
+    cs_surface_newline(s);
+  }
+
+  // Body rows.
+  for (size_t r = 0; r < table->row_count; r++) {
+    for (size_t c = 0; c < ncol; c++) {
+      if (c > 0) {
+        cs_surface_write(s, gap);
+      }
+      cs_table_write_cell(s, text_role, cs_table_cell(table, r, c), widths[c],
+                          table->columns[c].align);
+    }
+    cs_surface_newline(s);
+  }
+
+  free(widths);
+}
