@@ -438,8 +438,9 @@ jobs:
   validate-template:
     name: Validate Template
     runs-on: ${{ vars.CI_LINUX_RUNNER || 'ubuntu-latest' }}
-    # Skip validation for the template repository itself
-    if: github.repository != 'sammyjoyce/curspan'
+    # Skip validation for the template repository itself (name-independent;
+    # generated repos have is_template == false)
+    if: ${{ !github.event.repository.is_template }}
 
     steps:
       - name: Check out repository
