@@ -1,110 +1,135 @@
-# Example: Creating a Custom TUI Screen
+# Example: Composing Components on a Surface
 
-The terminal UI is compiled by default (which defines `ENABLE_TUI`). Pass
-`-Denable-tui=false` for a CLI/headless-only build. `tui.h` gives you a window wrapper, dialogs, a progress bar, and one
-modal menu primitive, so command code never calls ncurses directly. Every screen
-follows the same rule: call `tui_init()` first, and `tui_cleanup()` before you return,
-on every path.
+Curspan components draw through one neutral [`cs_surface`](../docs/COMPONENTS.md#the-surface).
+A surface targets either a **CLI byte stream** or a **TUI ncurses window**, so the
+same component calls render in both places — the surface owns capability detection
+and color degradation. This example composes the catalog on each backend, then
+shows where to reach for the interactive TUI primitives.
 
-## 1. A complete screen
+- [On a CLI stream](#1-on-a-cli-stream)
+- [On a TUI window](#2-on-a-tui-window)
+- [Interactive primitives](#3-interactive-primitives)
+- [Theming](#4-theming)
+- [Practices](#5-practices)
 
-This handler opens a bordered window, draws a live value with a bar, and loops on
-keypresses. It drops to raw ncurses (`mvwprintw`, `waddch`) for the drawing, which is
-fine; the wrapper manages lifecycle and layout, not every cell.
+## 1. On a CLI stream
+
+A stream surface needs no TUI build (it works with `-Denable-tui=false`). Build
+one over `stdout`, render components, free it. The `app_config_t` carries the
+color policy (`NO_COLOR` / `--plain` / `--json` …), so the surface respects it
+automatically.
+
+```c
+#include "curspan.h"
+
+static app_error show_report(const app_config_t *config) {
+    cs_surface_t *s = cs_surface_stream_new(stdout, config, NULL); // NULL => default theme
+    if (!s) {
+        return APP_ERROR_MEMORY;
+    }
+
+    cs_heading_render(&(cs_heading_t){.text = "Build report", .underline = true}, s);
+
+    cs_table_column_t cols[] = {
+        {.header = "Step"},
+        {.header = "Result", .align = CS_ALIGN_RIGHT},
+    };
+    const char *cells[] = {
+        "compile", "ok",
+        "link",    "ok",
+        "tests",   "25 passed",
+    };
+    cs_table_render(&(cs_table_t){.columns = cols, .column_count = 2,
+                                  .cells = cells, .row_count = 3,
+                                  .header = true, .width = 48}, s);
+
+    cs_surface_newline(s);
+    cs_note_render(&(cs_note_t){.variant = CS_NOTE_SUCCESS,
+                                .title = "Done",
+                                .body = "Everything is green.",
+                                .width = 48}, s);
+
+    cs_surface_free(s);   // borrows stdout — does not close it
+    return APP_SUCCESS;
+}
+```
+
+The same code degrades on its own: amber on a truecolor terminal, the nearest
+palette index on a 256/16-color one, and plain escape-free text under a pipe.
+
+## 2. On a TUI window
+
+The interactive ncurses interface is compiled by default (which defines
+`ENABLE_TUI`); pass `-Denable-tui=false` for a CLI/headless-only build. Call
+`tui_init()` first (it sets up the color pairs) and `tui_cleanup()` before you
+return on **every** path. A curses surface wraps a `tui_window_t`, so the same
+components draw inside the window:
 
 ```c
 #ifdef ENABLE_TUI
-static app_error show_data_viewer(void) {
-    app_error err = tui_init();
+static app_error show_report_tui(void) {
+    app_error err = tui_init();   // also initializes color pairs
     if (err != APP_SUCCESS) {
         return err;
     }
 
-    int max_y = tui_get_max_y();
-    int max_x = tui_get_max_x();
-
-    tui_window_t *main_win = tui_create_window(max_y - 2, max_x - 2, 1, 1);
-    if (!main_win) {
+    tui_window_t *win = tui_create_window(tui_get_max_y() - 2, tui_get_max_x() - 2, 1, 1);
+    if (!win) {
         tui_cleanup();
         return APP_ERROR_MEMORY;
     }
-    tui_draw_border(main_win);
-    tui_set_window_title(main_win, "Data Viewer");
+    tui_draw_border(win);
+    tui_set_window_title(win, "Build report");
 
-    tui_window_t *data_win = tui_create_window(max_y - 10, max_x - 10, 5, 5);
-    if (!data_win) {
-        tui_destroy_window(main_win);
+    cs_surface_t *s = cs_surface_curses_new(win, NULL);  // NULL => default theme
+    if (!s) {
+        tui_destroy_window(win);
         tui_cleanup();
         return APP_ERROR_MEMORY;
     }
-    tui_draw_border(data_win);
-    tui_set_window_title(data_win, "Live Data");
 
-    bool running = true;
-    int data_value = 0;
+    cs_surface_move(s, 2, 1);   // position inside the border (curses only)
+    cs_heading_render(&(cs_heading_t){.text = "Build report"}, s);
 
-    while (running) {
-        tui_clear_window(data_win);
+    cs_keyvalue_pair_t rows[] = {{"compile", "ok"}, {"link", "ok"}, {"tests", "ok"}};
+    cs_surface_move(s, 2, 3);
+    cs_keyvalue_render(&(cs_keyvalue_t){.pairs = rows, .count = 3}, s);
 
-        tui_set_color(data_win->win, TUI_COLOR_INFO);
-        mvwprintw(data_win->win, 2, 2, "Current Value: %d", data_value);
-        tui_unset_color(data_win->win, TUI_COLOR_INFO);
+    tui_refresh_window(win);
+    tui_get_char();             // wait for a key
 
-        int inner = data_win->width > 4 ? data_win->width - 4 : 0;
-        int bar_width = inner * data_value / 100;
-        mvwprintw(data_win->win, 4, 2, "[");
-        tui_set_color(data_win->win, TUI_COLOR_SUCCESS);
-        for (int i = 0; i < bar_width; i++) {
-            waddch(data_win->win, '=');
-        }
-        tui_unset_color(data_win->win, TUI_COLOR_SUCCESS);
-        mvwprintw(data_win->win, 4, 3 + bar_width, "]");
-
-        mvwprintw(main_win->win, max_y - 4, 2,
-                  "Press: [+] Increase  [-] Decrease  [r] Reset  [q] Quit");
-
-        tui_refresh_window(data_win);
-        tui_refresh_window(main_win);
-
-        switch (tui_get_char()) {
-            case '+': case '=': if (data_value < 100) data_value += 5; break;
-            case '-': case '_': if (data_value > 0)   data_value -= 5; break;
-            case 'r': case 'R': data_value = 0; break;
-            case 'q': case 'Q': case 27 /* ESC */: running = false; break;
-        }
-    }
-
-    tui_destroy_window(data_win);
-    tui_destroy_window(main_win);
+    cs_surface_free(s);         // borrows the window — does not destroy it
+    tui_destroy_window(win);
     tui_cleanup();
     return APP_SUCCESS;
 }
 #endif
 ```
 
-## 2. Wire it to a command
-
-Register a handler in `src/cli/commands.c` with `.requires_terminal = true`, and guard the TUI call so a non-TUI build still gives a clean message instead of failing to link:
+`cs_surface_move(x, y)` positions the cursor on a curses surface and is a no-op on
+a stream (which flows top to bottom), so a component that avoids `move` works on
+both. Wire the handler to a command with `.requires_terminal = true`, and guard
+the TUI call so a non-TUI build still links:
 
 ```c
-app_error app_cmd_viewer(const app_config_t *config, int argc,
-                         char *const argv[]) {
-    (void)config;
-    (void)argc;
-    (void)argv;
+app_error app_cmd_report(const app_config_t *config, int argc, char *const argv[]) {
+    (void)argc; (void)argv;
 #ifdef ENABLE_TUI
-    return show_data_viewer();
-#else
-    fprintf(stderr, "Error: TUI support not compiled in.\n");
-    fprintf(stderr, "Rebuild with TUI enabled (omit -Denable-tui=false).\n");
-    return APP_ERROR_CONFIG;
+    if (config && /* a TTY is available */ true) {
+        return show_report_tui();
+    }
 #endif
+    return show_report(config);  // fall back to the stream surface
 }
 ```
 
-`.requires_terminal = true` makes help and `myapp opencli` mark the command as interactive. See [adding-a-command.md](adding-a-command.md) for the full registration steps.
+See [adding-a-command.md](adding-a-command.md) for the full registration steps.
 
-## 3. Building blocks
+## 3. Interactive primitives
+
+A surface is for **drawing**. For **input** — menus, prompts, confirmations —
+reach for the `tui_` primitives directly. They manage the event loop; render
+components around them.
 
 ### Dialogs
 
@@ -121,7 +146,10 @@ if (tui_input_dialog("Login", "Enter username:", username, sizeof(username)) == 
 }
 ```
 
-### Progress bar
+### Interactive progress
+
+`cs_progress` renders a bar **once** (great inside other output). For a
+long-running task that owns the screen, use the interactive `tui_progress`:
 
 ```c
 tui_progress_t *progress = tui_progress_create("Processing", 100);
@@ -136,10 +164,10 @@ tui_progress_destroy(progress);
 
 ### Menu
 
-The menu is the one reusable primitive that is also shipped as a library
+The menu is the one reusable primitive also shipped as a library
 (`tui-menu-lib`) and covered by the
-[TUI menu contract](../docs/CONTRACTS.md#tui-menu-contract). All pointers in the config
-must outlive the call; the menu copies nothing.
+[TUI menu contract](../docs/CONTRACTS.md#tui-menu-contract). All pointers in the
+config must outlive the call; the menu copies nothing.
 
 ```c
 enum { MENU_OPTION_ONE = 1, MENU_OPTION_TWO, MENU_EXIT };
@@ -172,34 +200,42 @@ if (result.status == TUI_MENU_OK) {
 
 `&` in a label marks the mnemonic key (`&&` is a literal `&`). `result.status` is one of `TUI_MENU_OK`, `TUI_MENU_CANCELLED`, `TUI_MENU_INTERRUPTED`, `TUI_MENU_TOO_SMALL`, `TUI_MENU_INVALID_ARG`, or `TUI_MENU_NO_MEMORY`.
 
-## 4. Colors
+## 4. Theming
 
-Set a color pair before drawing and unset it after. The pairs are roles, not fixed colors. The theme is realized in `tui_init_colors()` (`src/tui/tui.c`) from the shared semantic roles in `src/style/ui_theme.c`, which are seeded from `src/style/design_tokens.c`:
+Components never name a raw color — they style themselves through theme roles, and
+the surface degrades each role for the terminal. Pick or override a theme and pass
+it to the surface (it is copied):
 
 ```c
-tui_set_color(window->win, TUI_COLOR_ERROR);
-mvwprintw(window->win, y, x, "Error: %s", message);
-tui_unset_color(window->win, TUI_COLOR_ERROR);
+cs_theme_t theme = cs_theme_default();
+cs_theme_set_role_spec(&theme, CS_ROLE_ACCENT, "#7dd3fc");   // re-accent
+cs_surface_t *s = cs_surface_stream_new(stdout, config, &theme);
 ```
 
-Available pairs: `TUI_COLOR_DEFAULT`, `HIGHLIGHT`, `ERROR`, `SUCCESS`, `WARNING`, `INFO`, `MENU_NORMAL`, `BORDER`, `TITLE`, `ACCENT`, `DIM`.
+`cs_theme_by_name("mono", &theme)` switches to the grayscale theme; both
+front-ends and every component share the same roles. Full detail in
+[THEMING.md](../docs/THEMING.md).
 
 ## 5. Practices
 
 - **Pair every `tui_init()` with `tui_cleanup()`**, including on every error path, or the terminal is left in raw mode.
-- **Handle a failed init.** `tui_init()` returns an `app_error`; fall back to non-interactive output rather than aborting:
+- **Handle a failed init.** `tui_init()` returns an `app_error`; fall back to the stream surface rather than aborting:
 
   ```c
   if (tui_init() != APP_SUCCESS) {
-      fprintf(stderr, "Terminal does not support the TUI; using plain output.\n");
-      return run_plain_version();
+      return show_report(config);  // plain, escape-free output
   }
   ```
 
 - **Respect interrupts.** Check `tui_interrupted()` in long loops and exit cleanly.
+- **Branch on capability, not on the build.** `cs_surface_caps(s)` reports
+  `unicode`, `color`, `width`, and `interactive`; components already use it (e.g.
+  ASCII glyph fallbacks), so a composed screen degrades without `#ifdef`s.
 - **Test both builds.** Confirm `zig build` (default TUI) and `zig build -Denable-tui=false` both compile and behave. Drive TUI screens with the scenario harness in [TESTING.md](../docs/TESTING.md).
 
 ## See also
 
-- [Public Contracts](../docs/CONTRACTS.md#tui-menu-contract) - the stable menu surface
-- [Architecture Overview](../docs/ARCHITECTURE.md) - where `tui/` sits in the codebase
+- [Components](../docs/COMPONENTS.md) - the catalog and the full surface API
+- [Theming](../docs/THEMING.md) - roles, named themes, and color degradation
+- [Public Contracts](../docs/CONTRACTS.md) - the stable framework and menu surfaces
+- [Architecture Overview](../docs/ARCHITECTURE.md) - where the surface and `tui/` sit
