@@ -10,8 +10,10 @@ void cs_keyvalue_render(const cs_keyvalue_t *kv, cs_surface_t *s) {
   if (!kv || !s || !kv->pairs || kv->count == 0) {
     return;
   }
-  cs_role_t key_role = kv->key_role ? kv->key_role : CS_ROLE_MUTED;
-  cs_role_t value_role = kv->value_role ? kv->value_role : CS_ROLE_TEXT;
+  cs_role_t key_role =
+      cs_role_or_default(kv->key_role, kv->key_role_set, CS_ROLE_MUTED);
+  cs_role_t value_role =
+      cs_role_or_default(kv->value_role, kv->value_role_set, CS_ROLE_TEXT);
   const char *separator = kv->separator ? kv->separator : "  ";
 
   int key_width = 0;
@@ -31,8 +33,8 @@ void cs_keyvalue_render(const cs_keyvalue_t *kv, cs_surface_t *s) {
     cs_surface_write(s, key);
     cs_surface_reset(s);
     int pad = key_width - app_text_width_utf8(key);
-    for (int p = 0; p < pad; p++) {
-      cs_surface_write(s, " ");
+    if (pad > 0) {
+      cs_surface_repeat(s, " ", (size_t)pad);
     }
 
     cs_surface_write(s, separator);

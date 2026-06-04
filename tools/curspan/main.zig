@@ -125,14 +125,24 @@ fn flush(ctx: Ctx, buf: *std.ArrayList(u8)) !void {
 
 // A registry file path must be relative and stay within the tree. Reject
 // absolute paths and any ".." segment so `add`/`check` can never reach outside
-// the source root or the destination project.
+// the source root or the destination project. Split on both POSIX and Windows
+// separators regardless of the build host: on a Windows host `std.fs.path.join`
+// honors `\`, so a "..\\.." segment in an untrusted `--registry` would escape a
+// gate that only split on '/'.
 fn pathIsUnsafe(p: []const u8) bool {
     if (std.fs.path.isAbsolute(p)) return true;
-    var it = std.mem.splitScalar(u8, p, '/');
+    var it = std.mem.splitAny(u8, p, "/\\");
     while (it.next()) |seg| {
         if (std.mem.eql(u8, seg, "..")) return true;
     }
     return false;
+}
+
+test "pathIsUnsafe rejects traversal with either path separator" {
+    try std.testing.expect(pathIsUnsafe("../registry.json"));
+    try std.testing.expect(pathIsUnsafe("foo/../bar"));
+    try std.testing.expect(pathIsUnsafe("foo\\..\\bar"));
+    try std.testing.expect(!pathIsUnsafe("src/components/cs_table.c"));
 }
 
 // One catalog row: "  <name padded>  <description>".

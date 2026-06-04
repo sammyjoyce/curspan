@@ -10,9 +10,9 @@
  *
  * The default scheme's tokens are projected from the shared semantic UI theme
  * (style/ui_theme.h) so the CLI and TUI share role meaning instead of
- * hand-maintained duplicate palettes. The scheme degrades to ANSI-256/ANSI-16 per the detected profile (each token
- * carries a semantic ANSI-16 fallback hint), and callers may apply per-token
- * overrides.
+ * hand-maintained duplicate palettes. The scheme degrades to ANSI-256/ANSI-16
+ * per the detected profile (each token carries a semantic ANSI-16 fallback
+ * hint), and callers may apply per-token overrides.
  */
 
 #pragma once

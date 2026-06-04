@@ -14,7 +14,8 @@
 
 typedef struct cs_heading {
   const char *text;
-  cs_role_t role;  // heading color role (0 => CS_ROLE_TITLE)
+  cs_role_t role;  // heading color role (default: CS_ROLE_TITLE)
+  bool role_set;   // true when `role` is intentional (allows CS_ROLE_TEXT)
   bool uppercase;  // upper-case the text (ASCII letters only)
   bool underline;  // draw a rule beneath, as wide as the heading
 } cs_heading_t;

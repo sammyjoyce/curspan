@@ -168,6 +168,7 @@ relevant, degraded-profile output.
 The defining ShadCN feature.
 
 - **`registry/registry.json`** — single source of truth. Each entry:
+
   ```json
   {
     "name": "table",
@@ -180,6 +181,7 @@ The defining ShadCN feature.
     "since": "1.0.0"
   }
   ```
+
   Foundations (`surface`, `theme`, `text-layout`, `color-math`, `design-tokens`) are
   registry entries too, so dependency closures resolve.
 - **`curspan` CLI** (`tools/curspan/main.zig`, built with `zig build curspan` →

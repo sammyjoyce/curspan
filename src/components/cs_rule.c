@@ -17,8 +17,10 @@ void cs_rule_render(const cs_rule_t *rule, cs_surface_t *s) {
     width = 80;
   }
   const char *glyph = rule->glyph ? rule->glyph : cs_glyph_hline(caps.unicode);
-  cs_role_t line_role = rule->role ? rule->role : CS_ROLE_BORDER;
-  cs_role_t label_role = rule->label_role ? rule->label_role : CS_ROLE_TITLE;
+  cs_role_t line_role =
+      cs_role_or_default(rule->role, rule->role_set, CS_ROLE_BORDER);
+  cs_role_t label_role =
+      cs_role_or_default(rule->label_role, rule->label_role_set, CS_ROLE_TITLE);
 
   if (!rule->label || !rule->label[0]) {
     cs_surface_set_role(s, line_role);

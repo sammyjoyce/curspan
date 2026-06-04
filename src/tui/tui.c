@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "../io/terminal.h"
+#include "../style/cs_theme.h"
 #include "../style/design_tokens.h"
 #include "../style/ui_theme.h"
 #include "../ui/text_layout.h"
@@ -195,7 +196,7 @@ static short tui_default_fg(void) {
   return tui_default_colors ? -1 : COLOR_WHITE;
 }
 
-static short tui_default_bg(void) {
+short tui_default_bg(void) {
   return tui_default_colors ? -1 : COLOR_BLACK;
 }
 
@@ -367,17 +368,6 @@ static app_cli_color_profile_id tui_requested_color_profile(void) {
   return APP_CLI_COLOR_PROFILE_NONE;
 }
 
-static app_ui_theme_mode_id tui_resolve_theme_mode(void) {
-  const char *theme = getenv("APP_CLI_TEST_THEME");
-  if (!theme) {
-    theme = getenv("APP_CLI_THEME");
-  }
-  if (theme && strcmp(theme, "light") == 0) {
-    return APP_UI_THEME_MODE_LIGHT;
-  }
-  return APP_UI_THEME_MODE_DARK;
-}
-
 static bool tui_accent_override_is_indexed(void) {
   const char *accent = getenv("APP_CLI_ACCENT");
   if (!accent || !accent[0]) {
@@ -387,7 +377,8 @@ static bool tui_accent_override_is_indexed(void) {
   if (!app_ui_color_parse(accent, &color)) {
     return false;
   }
-  return color.kind == APP_UI_COLOR_ANSI16 || color.kind == APP_UI_COLOR_ANSI256;
+  return color.kind == APP_UI_COLOR_ANSI16 ||
+         color.kind == APP_UI_COLOR_ANSI256;
 }
 
 static bool tui_palette_is_programmable(void) {
@@ -417,28 +408,31 @@ static void tui_init_color_from(short slot, app_rgb_t c) {
 static void tui_define_rgb_palette(const app_ui_color_scheme_t *scheme,
                                    app_ui_theme_mode_id mode) {
   const app_design_palette_t *p = &APP_DESIGN_PALETTE;
-  tui_init_color_from(TUI_RGB_TEXT, tui_role_rgb(scheme, mode, APP_UI_ROLE_TEXT,
-                                                 p->fg));
-  tui_init_color_from(TUI_RGB_TITLE, tui_role_rgb(scheme, mode, APP_UI_ROLE_TITLE,
-                                                  p->amber));
-  tui_init_color_from(TUI_RGB_MUTED, tui_role_rgb(scheme, mode, APP_UI_ROLE_MUTED,
-                                                  p->muted));
-  tui_init_color_from(TUI_RGB_ACCENT, tui_role_rgb(scheme, mode, APP_UI_ROLE_ACCENT,
-                                                   p->amber));
-  tui_init_color_from(TUI_RGB_SUCCESS,
-                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SUCCESS, p->green));
-  tui_init_color_from(TUI_RGB_WARNING,
-                      tui_role_rgb(scheme, mode, APP_UI_ROLE_WARNING, p->yellow));
-  tui_init_color_from(TUI_RGB_INFO, tui_role_rgb(scheme, mode, APP_UI_ROLE_INFO,
-                                                 p->blue));
-  tui_init_color_from(TUI_RGB_ERROR, tui_role_rgb(scheme, mode, APP_UI_ROLE_ERROR_DETAILS,
-                                                  p->red));
-  tui_init_color_from(TUI_RGB_SELECTION_FG,
-                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_FG,
-                                   p->near_black));
-  tui_init_color_from(TUI_RGB_SELECTION_BG,
-                      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_BG,
-                                   p->amber));
+  tui_init_color_from(TUI_RGB_TEXT,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_TEXT, p->fg));
+  tui_init_color_from(TUI_RGB_TITLE,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_TITLE, p->amber));
+  tui_init_color_from(TUI_RGB_MUTED,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_MUTED, p->muted));
+  tui_init_color_from(TUI_RGB_ACCENT,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_ACCENT, p->amber));
+  tui_init_color_from(
+      TUI_RGB_SUCCESS,
+      tui_role_rgb(scheme, mode, APP_UI_ROLE_SUCCESS, p->green));
+  tui_init_color_from(
+      TUI_RGB_WARNING,
+      tui_role_rgb(scheme, mode, APP_UI_ROLE_WARNING, p->yellow));
+  tui_init_color_from(TUI_RGB_INFO,
+                      tui_role_rgb(scheme, mode, APP_UI_ROLE_INFO, p->blue));
+  tui_init_color_from(
+      TUI_RGB_ERROR,
+      tui_role_rgb(scheme, mode, APP_UI_ROLE_ERROR_DETAILS, p->red));
+  tui_init_color_from(
+      TUI_RGB_SELECTION_FG,
+      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_FG, p->near_black));
+  tui_init_color_from(
+      TUI_RGB_SELECTION_BG,
+      tui_role_rgb(scheme, mode, APP_UI_ROLE_SELECTION_BG, p->amber));
 }
 
 static short tui_fold_ansi16(uint8_t index, short fallback) {
@@ -455,8 +449,7 @@ static short tui_fold_ansi16(uint8_t index, short fallback) {
 }
 
 static short tui_color_index(app_ui_color_t color,
-                             app_cli_color_profile_id profile,
-                             short fallback) {
+                             app_cli_color_profile_id profile, short fallback) {
   switch (color.kind) {
   case APP_UI_COLOR_ANSI16:
     return tui_fold_ansi16(color.ansi16, fallback);
@@ -484,8 +477,7 @@ static short tui_color_index(app_ui_color_t color,
 
 static short tui_role_index(const app_ui_color_scheme_t *scheme,
                             app_ui_theme_mode_id mode, app_ui_role_id role,
-                            app_cli_color_profile_id profile,
-                            short fallback) {
+                            app_cli_color_profile_id profile, short fallback) {
   return tui_color_index(app_ui_theme_pick(scheme, role, mode), profile,
                          fallback);
 }
@@ -508,14 +500,14 @@ static void tui_init_programmable_pairs(const app_ui_color_scheme_t *scheme,
 static void tui_init_indexed_pairs(const app_ui_color_scheme_t *scheme,
                                    app_ui_theme_mode_id mode,
                                    app_cli_color_profile_id profile, short bg) {
-  const short text = tui_role_index(scheme, mode, APP_UI_ROLE_TEXT, profile,
-                                    tui_default_fg());
-  const short title = tui_role_index(scheme, mode, APP_UI_ROLE_TITLE, profile,
-                                     COLOR_YELLOW);
-  const short accent = tui_role_index(scheme, mode, APP_UI_ROLE_ACCENT, profile,
-                                      COLOR_YELLOW);
-  const short muted = tui_role_index(scheme, mode, APP_UI_ROLE_MUTED, profile,
-                                     COLOR_WHITE);
+  const short text =
+      tui_role_index(scheme, mode, APP_UI_ROLE_TEXT, profile, tui_default_fg());
+  const short title =
+      tui_role_index(scheme, mode, APP_UI_ROLE_TITLE, profile, COLOR_YELLOW);
+  const short accent =
+      tui_role_index(scheme, mode, APP_UI_ROLE_ACCENT, profile, COLOR_YELLOW);
+  const short muted =
+      tui_role_index(scheme, mode, APP_UI_ROLE_MUTED, profile, COLOR_WHITE);
   init_pair(TUI_COLOR_HIGHLIGHT,
             tui_role_index(scheme, mode, APP_UI_ROLE_SELECTION_FG, profile,
                            COLOR_BLACK),
@@ -525,14 +517,14 @@ static void tui_init_indexed_pairs(const app_ui_color_scheme_t *scheme,
             tui_role_index(scheme, mode, APP_UI_ROLE_ERROR_DETAILS, profile,
                            COLOR_RED),
             bg);
-  init_pair(TUI_COLOR_SUCCESS,
-            tui_role_index(scheme, mode, APP_UI_ROLE_SUCCESS, profile,
-                           COLOR_GREEN),
-            bg);
-  init_pair(TUI_COLOR_WARNING,
-            tui_role_index(scheme, mode, APP_UI_ROLE_WARNING, profile,
-                           COLOR_YELLOW),
-            bg);
+  init_pair(
+      TUI_COLOR_SUCCESS,
+      tui_role_index(scheme, mode, APP_UI_ROLE_SUCCESS, profile, COLOR_GREEN),
+      bg);
+  init_pair(
+      TUI_COLOR_WARNING,
+      tui_role_index(scheme, mode, APP_UI_ROLE_WARNING, profile, COLOR_YELLOW),
+      bg);
   init_pair(TUI_COLOR_INFO,
             tui_role_index(scheme, mode, APP_UI_ROLE_INFO, profile, COLOR_BLUE),
             bg);
@@ -553,7 +545,7 @@ app_error tui_init_colors(void) {
 
   app_ui_color_scheme_t scheme = *app_ui_theme_default_scheme();
   app_ui_theme_apply_env_overrides(&scheme);
-  const app_ui_theme_mode_id mode = tui_resolve_theme_mode();
+  const app_ui_theme_mode_id mode = cs_theme_mode_resolve();
   const app_cli_color_profile_id requested = tui_requested_color_profile();
   const short bg = tui_default_bg();
 

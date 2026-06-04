@@ -5,10 +5,13 @@
  * here; surface.c reaches these functions solely through the ops vtable, so a
  * CLI-only or unit-test build never references a curses symbol.
  *
- * Curses color pairs fix foreground and background together, so a role maps to
- * the nearest existing TUI_COLOR_* pair (set up by tui_init_colors). This keeps
- * components visually consistent with the rest of the TUI without managing a
- * second, parallel pool of init_color slots.
+ * Color: a foreground role is resolved through the caller's cs_theme — the same
+ * shared resolver the stream backend uses — and bound to a dedicated pair drawn
+ * from a block reserved above the TUI's own pairs, so a per-surface theme (e.g.
+ * "mono") renders the same on curses as on a stream. When the theme doesn't
+ * resolve to a palette index, curses has no free pair, or a background role is
+ * set (curses pairs fix fg+bg together), we fall back to the nearest pre-seeded
+ * TUI_COLOR_* pair from tui_init_colors.
  */
 
 #include "surface_internal.h"
@@ -61,18 +64,51 @@ static WINDOW *curses_win(cs_surface_t *s) {
   return s->window ? s->window->win : NULL;
 }
 
-static void curses_set_color(cs_surface_t *s, cs_role_t role, bool bg) {
-  (void)bg;  // pairs fix fg+bg together; see cs_surface_set_role_bg
-  WINDOW *w = curses_win(s);
-  if (w && tui_colors_enabled()) {
-    // Clear any current color pair before applying the new one. wattron ORs the
-    // pair bits, so two set_role calls before a reset (which the surface API
-    // documents as legal — "additive until reset") would otherwise combine into
-    // a corrupted third pair index. A_COLOR is just the color field, so this
-    // leaves bold/dim/underline intact.
-    wattroff(w, A_COLOR);
-    wattron(w, COLOR_PAIR(cs_role_to_pair(role)));
+// Bind a reserved pair to the theme-resolved foreground for `role` and return
+// it, or -1 when the theme resolves to no palette index (e.g. terminal-default)
+// or curses has no free pair. The pair block lives above TUI_COLOR_MAX so it
+// never collides with the TUI's own pairs; we re-bind on each call (cheap) to
+// stay correct across theme changes and tui re-init without per-pair state.
+static short cs_curses_role_pair(cs_surface_t *s, cs_role_t role) {
+  app_ui_resolved_color_t r =
+      cs_theme_resolve(&s->theme, role, s->caps.profile, s->caps.color_count);
+  if (r.kind != APP_UI_RESOLVED_INDEXED) {
+    return -1;
   }
+  short pair = (short)(TUI_COLOR_MAX + (int)role);
+  if (pair >= COLOR_PAIRS) {
+    return -1;
+  }
+  if (init_pair(pair, (short)r.index, tui_default_bg()) == ERR) {
+    return -1;
+  }
+  return pair;
+}
+
+static void curses_set_color(cs_surface_t *s, cs_role_t role, bool bg) {
+  WINDOW *w = curses_win(s);
+  if (!w || !tui_colors_enabled()) {
+    return;
+  }
+  // Clear any current color pair before applying the new one. wattron ORs the
+  // pair bits, so two set_role calls before a reset (which the surface API
+  // documents as legal — "additive until reset") would otherwise combine into
+  // a corrupted third pair index. A_COLOR is just the color field, so this
+  // leaves bold/dim/underline intact.
+  wattroff(w, A_COLOR);
+
+  // Foreground roles resolve through the caller's theme so a custom theme looks
+  // the same here as on the stream backend. A background role keeps the static
+  // fg+bg TUI pair (which already carries the surrounding background), as does
+  // any case where the themed pair is unavailable.
+  if (!bg) {
+    short pair = cs_curses_role_pair(s, role);
+    if (pair > 0) {
+      wattron(w, COLOR_PAIR(pair));
+      return;
+    }
+  }
+  wattron(w, COLOR_PAIR(cs_role_to_pair(role)));
 }
 
 static void curses_set_attr(cs_surface_t *s, cs_attr_t attrs) {

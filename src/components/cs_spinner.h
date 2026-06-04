@@ -27,7 +27,8 @@ typedef enum cs_spinner_style {
 typedef struct cs_spinner {
   const char *label;  // optional, shown after the spinner glyph
   cs_spinner_style_t style;
-  cs_role_t role;  // spinner glyph color (0 => CS_ROLE_ACCENT)
+  cs_role_t role;  // spinner glyph color (default: CS_ROLE_ACCENT)
+  bool role_set;   // true when `role` is intentional
 } cs_spinner_t;
 
 // Number of distinct frames for a style at a given unicode capability.

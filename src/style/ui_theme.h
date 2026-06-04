@@ -41,32 +41,32 @@ typedef enum app_ui_theme_mode_id {
   APP_UI_THEME_MODE_LIGHT,
 } app_ui_theme_mode_id;
 
-#define APP_UI_ROLE_LIST(X)                         \
-  X(TEXT, text, "Text")                            \
-  X(TITLE, title, "Title")                         \
-  X(DESCRIPTION, description, "Description")       \
-  X(CODE, code, "Code")                            \
-  X(PROGRAM, program, "Program")                   \
-  X(MUTED, muted, "Muted")                         \
-  X(ACCENT, accent, "Accent")                      \
-  X(COMMENT, comment, "Comment")                   \
-  X(FLAG, flag, "Flag")                            \
-  X(FLAG_DEFAULT, flag_default, "FlagDefault")     \
-  X(COMMAND, command, "Command")                   \
-  X(QUOTED_STRING, quoted_string, "QuotedString")  \
-  X(ARGUMENT, argument, "Argument")                \
-  X(HELP, help, "Help")                            \
-  X(DASH, dash, "Dash")                            \
+#define APP_UI_ROLE_LIST(X)                            \
+  X(TEXT, text, "Text")                                \
+  X(TITLE, title, "Title")                             \
+  X(DESCRIPTION, description, "Description")           \
+  X(CODE, code, "Code")                                \
+  X(PROGRAM, program, "Program")                       \
+  X(MUTED, muted, "Muted")                             \
+  X(ACCENT, accent, "Accent")                          \
+  X(COMMENT, comment, "Comment")                       \
+  X(FLAG, flag, "Flag")                                \
+  X(FLAG_DEFAULT, flag_default, "FlagDefault")         \
+  X(COMMAND, command, "Command")                       \
+  X(QUOTED_STRING, quoted_string, "QuotedString")      \
+  X(ARGUMENT, argument, "Argument")                    \
+  X(HELP, help, "Help")                                \
+  X(DASH, dash, "Dash")                                \
   X(ERROR_HEADER_FG, error_header_fg, "ErrorHeaderFg") \
   X(ERROR_HEADER_BG, error_header_bg, "ErrorHeaderBg") \
-  X(ERROR_DETAILS, error_details, "ErrorDetails")  \
-  X(SUCCESS, success, "Success")                   \
-  X(WARNING, warning, "Warning")                   \
-  X(INFO, info, "Info")                            \
-  X(BORDER, border, "Border")                      \
-  X(SELECTION_FG, selection_fg, "SelectionFg")     \
-  X(SELECTION_BG, selection_bg, "SelectionBg")     \
-  X(PANEL, panel, "Panel")                         \
+  X(ERROR_DETAILS, error_details, "ErrorDetails")      \
+  X(SUCCESS, success, "Success")                       \
+  X(WARNING, warning, "Warning")                       \
+  X(INFO, info, "Info")                                \
+  X(BORDER, border, "Border")                          \
+  X(SELECTION_FG, selection_fg, "SelectionFg")         \
+  X(SELECTION_BG, selection_bg, "SelectionBg")         \
+  X(PANEL, panel, "Panel")                             \
   X(PANEL_ALT, panel_alt, "PanelAlt")
 
 typedef enum app_ui_role_id {
@@ -114,11 +114,10 @@ app_ui_resolved_color_t app_ui_color_resolve(app_ui_color_t color,
                                              int color_count);
 
 /* Resolve a role from a scheme for a mode + profile in one call. */
-app_ui_resolved_color_t app_ui_theme_resolve(const app_ui_color_scheme_t *scheme,
-                                             app_ui_role_id role,
-                                             app_ui_theme_mode_id mode,
-                                             app_cli_color_profile_id profile,
-                                             int color_count);
+app_ui_resolved_color_t app_ui_theme_resolve(
+    const app_ui_color_scheme_t *scheme, app_ui_role_id role,
+    app_ui_theme_mode_id mode, app_cli_color_profile_id profile,
+    int color_count);
 
 /* Parse "#rrggbb"/"rrggbb" RGB or decimal ANSI palette index 0..255. */
 bool app_ui_color_parse(const char *spec, app_ui_color_t *out);

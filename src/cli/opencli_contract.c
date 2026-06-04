@@ -30,8 +30,8 @@ static const app_opencli_metadata_field_t environment_fields[] = {
      .description = "Set to a non-zero value to force colored output on"},
     {.name = "CLICOLOR", .description = "Set 0 to disable colored output"},
     {.name = "APP_CLI_THEME",
-     .description =
-         "Terminal UI theme for styled CLI and generated TUI: auto, dark, or light"},
+     .description = "Terminal UI theme for styled CLI and generated TUI: auto, "
+                    "dark, or light"},
     {.name = "APP_CLI_COLOR",
      .description =
          "Terminal UI color profile: auto, never, 16, 256, truecolor"},

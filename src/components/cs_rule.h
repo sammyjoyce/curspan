@@ -15,8 +15,10 @@
 
 typedef struct cs_rule {
   const char *label;     // optional; centered in the rule (NULL => plain line)
-  cs_role_t role;        // line color role (0 => CS_ROLE_BORDER)
-  cs_role_t label_role;  // label color role (0 => CS_ROLE_TITLE)
+  cs_role_t role;        // line color role (default: CS_ROLE_BORDER)
+  cs_role_t label_role;  // label color role (default: CS_ROLE_TITLE)
+  bool role_set;         // true when `role` is intentional
+  bool label_role_set;   // true when `label_role` is intentional
   size_t width;          // total columns (0 => the surface width)
   const char *glyph;     // line glyph (NULL => unicode "─" / ascii "-")
 } cs_rule_t;

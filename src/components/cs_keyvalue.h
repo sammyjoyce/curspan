@@ -25,8 +25,10 @@ typedef struct cs_keyvalue_pair {
 typedef struct cs_keyvalue {
   const cs_keyvalue_pair_t *pairs;
   size_t count;
-  cs_role_t key_role;     // 0 => CS_ROLE_MUTED
-  cs_role_t value_role;   // 0 => CS_ROLE_TEXT
+  cs_role_t key_role;     // default: CS_ROLE_MUTED
+  cs_role_t value_role;   // default: CS_ROLE_TEXT
+  bool key_role_set;      // true when `key_role` is intentional
+  bool value_role_set;    // true when `value_role` is intentional
   const char *separator;  // between key column and value (NULL => "  ")
 } cs_keyvalue_t;
 

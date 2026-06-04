@@ -31,10 +31,10 @@ void cs_progress_render(const cs_progress_t *progress, cs_surface_t *s) {
     fraction = 0.0;
   }
 
-  cs_role_t bar_role =
-      progress->bar_role ? progress->bar_role : CS_ROLE_SUCCESS;
-  cs_role_t track_role =
-      progress->track_role ? progress->track_role : CS_ROLE_MUTED;
+  cs_role_t bar_role = cs_role_or_default(
+      progress->bar_role, progress->bar_role_set, CS_ROLE_SUCCESS);
+  cs_role_t track_role = cs_role_or_default(
+      progress->track_role, progress->track_role_set, CS_ROLE_MUTED);
   size_t width = progress->width ? progress->width : cs_surface_width(s);
   if (width == 0) {
     width = 80;
@@ -47,10 +47,19 @@ void cs_progress_render(const cs_progress_t *progress, cs_surface_t *s) {
     percent_cols = app_text_width_utf8(percent);
   }
 
-  int label_cols = 0;
+  // Truncate the label so the label + "  " separator + a >=1-column bar + the
+  // percent never overflow `width` (matches cs_table's per-cell truncation).
+  // Writing the label untruncated would smear a constrained line.
+  size_t label_bytes = 0;
+  int label_used = 0;
   if (progress->label && progress->label[0]) {
-    label_cols = app_text_width_utf8(progress->label) + 2;  // label + "  "
+    int label_budget = (int)width - percent_cols - 1 - 2;  // bar>=1, "  " sep
+    if (label_budget > 0) {
+      label_bytes = app_text_truncate_utf8_columns(progress->label,
+                                                   label_budget, &label_used);
+    }
   }
+  int label_cols = label_used > 0 ? label_used + 2 : 0;  // include "  " sep
 
   int bar_cols = (int)width - label_cols - percent_cols;
   if (bar_cols < 1) {
@@ -61,9 +70,9 @@ void cs_progress_render(const cs_progress_t *progress, cs_surface_t *s) {
     filled = bar_cols;
   }
 
-  if (progress->label && progress->label[0]) {
+  if (label_used > 0) {
     cs_surface_set_role(s, CS_ROLE_TEXT);
-    cs_surface_write(s, progress->label);
+    cs_surface_write_n(s, progress->label, label_bytes);
     cs_surface_reset(s);
     cs_surface_write(s, "  ");
   }

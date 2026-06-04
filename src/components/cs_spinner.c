@@ -37,7 +37,8 @@ void cs_spinner_render(const cs_spinner_t *spinner, int frame,
     return;
   }
   cs_caps_t caps = cs_surface_caps(s);
-  cs_role_t role = spinner->role ? spinner->role : CS_ROLE_ACCENT;
+  cs_role_t role =
+      cs_role_or_default(spinner->role, spinner->role_set, CS_ROLE_ACCENT);
 
   cs_surface_set_role(s, role);
   cs_surface_set_attr(s, CS_ATTR_BOLD);

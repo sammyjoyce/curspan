@@ -1,19 +1,22 @@
 /*
  * Unit tests for the Curspan component catalog.
  *
- * Each component is rendered to a non-TTY tmpfile() stream surface, which means
- * styling is disabled and the output is plain (escape-free). The invariants we
- * pin are the ones a downstream app depends on: the right text appears, layout
- * is stable, and a component NEVER emits an escape sequence onto a pipe.
+ * Most components are rendered to a non-TTY tmpfile() stream surface, which
+ * means styling is disabled and the output is plain (escape-free). The
+ * invariants we pin are the ones a downstream app depends on: the right text
+ * appears, layout is stable, and a component NEVER emits an escape sequence
+ * onto a pipe unless styling is explicitly forced for a color regression test.
  */
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../src/components/components.h"
 #include "../src/style/cs_theme.h"
 #include "../src/surface/surface.h"
+#include "../src/ui/text_layout.h"
 #include "unit_support.h"
 
 // Render through `s`, then return the captured bytes in `buf`. The surface is
@@ -37,8 +40,56 @@ static cs_surface_t *open_capture(FILE **stream_out) {
   return cs_surface_stream_new(stream, NULL, NULL);
 }
 
+static cs_surface_t *open_capture_theme(FILE **stream_out,
+                                        const cs_theme_t *theme) {
+  FILE *stream = tmpfile();
+  if (!stream) {
+    return NULL;
+  }
+  *stream_out = stream;
+  return cs_surface_stream_new(stream, NULL, theme);
+}
+
 static bool no_escapes(const char *buf) {
   return strstr(buf, "\x1b") == NULL;
+}
+
+static char *copy_env(const char *name) {
+  const char *value = getenv(name);
+  if (!value) {
+    return NULL;
+  }
+  size_t len = strlen(value) + 1;
+  char *copy = malloc(len);
+  if (copy) {
+    memcpy(copy, value, len);
+  }
+  return copy;
+}
+
+static void restore_env(const char *name, char *value) {
+  if (value) {
+    setenv(name, value, 1);
+    free(value);
+  } else {
+    unsetenv(name);
+  }
+}
+
+static bool rows_within_width(const char *buf, int width) {
+  const char *line = buf;
+  while (*line) {
+    const char *end = strchr(line, '\n');
+    size_t len = end ? (size_t)(end - line) : strlen(line);
+    if (app_text_width_utf8_n(line, len) > width) {
+      return false;
+    }
+    if (!end) {
+      break;
+    }
+    line = end + 1;
+  }
+  return true;
 }
 
 static bool test_surface_caps_plain(void) {
@@ -227,11 +278,10 @@ static bool test_progress_nan_is_safe(void) {
   if (!s) {
     return false;
   }
-  cs_progress_render(&(cs_progress_t){.value = NAN,
-                                      .total = 0,
-                                      .width = 20,
-                                      .show_percent = true},
-                     s);
+  cs_progress_render(
+      &(cs_progress_t){
+          .value = NAN, .total = 0, .width = 20, .show_percent = true},
+      s);
   char buf[256];
   capture(s, stream, buf, sizeof(buf));
   // NaN folds to 0%, and the call returns promptly (no hang).
@@ -260,6 +310,31 @@ static bool test_table_null_cells_is_safe(void) {
   return buf[0] == '\0';
 }
 
+// Even when there are more columns than can fit with one visible cell per
+// column, table rendering must honor the caller's total width budget rather
+// than raising the budget and smearing into neighboring UI.
+static bool test_table_respects_narrow_width_budget(void) {
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture(&stream);
+  if (!s) {
+    return false;
+  }
+  cs_table_column_t cols[] = {
+      {.header = "Alpha"}, {.header = "Beta"}, {.header = "Gamma"}};
+  const char *cells[] = {"one", "two", "three"};
+  const int width = 2;
+  cs_table_render(&(cs_table_t){.columns = cols,
+                                .column_count = 3,
+                                .cells = cells,
+                                .row_count = 1,
+                                .header = true,
+                                .width = (size_t)width},
+                  s);
+  char buf[512];
+  capture(s, stream, buf, sizeof(buf));
+  return rows_within_width(buf, width) && no_escapes(buf);
+}
+
 // The all-indexed "mono" theme must still resolve to concrete colors on a
 // truecolor terminal. (Regression: explicit indices collapsed to NONE there.)
 static bool test_mono_theme_colored_on_truecolor(void) {
@@ -273,6 +348,84 @@ static bool test_mono_theme_colored_on_truecolor(void) {
       &mono, CS_ROLE_BORDER, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
   return text.kind == APP_UI_RESOLVED_INDEXED &&
          border.kind == APP_UI_RESOLVED_INDEXED;
+}
+
+static bool test_explicit_text_role_overrides_non_text_default(void) {
+#ifdef APP_ENABLE_CLI_STYLE
+  char *previous_profile = copy_env("APP_CLI_TEST_PROFILE");
+  char *previous_no_color = copy_env("NO_COLOR");
+  char *previous_color = copy_env("APP_CLI_COLOR");
+  char *previous_term = copy_env("TERM");
+  char *previous_force = copy_env("FORCE_COLOR");
+  char *previous_clicolor = copy_env("CLICOLOR");
+  char *previous_clicolor_force = copy_env("CLICOLOR_FORCE");
+
+  unsetenv("NO_COLOR");
+  unsetenv("APP_CLI_COLOR");
+  unsetenv("FORCE_COLOR");
+  unsetenv("CLICOLOR");
+  unsetenv("CLICOLOR_FORCE");
+  setenv("TERM", "xterm-256color", 1);
+  setenv("APP_CLI_TEST_PROFILE", "truecolor", 1);
+
+  cs_theme_t theme = cs_theme_default();
+  bool ok = cs_theme_set_role_spec(&theme, CS_ROLE_TEXT, "#010203") &&
+            cs_theme_set_role_spec(&theme, CS_ROLE_MUTED, "#040506");
+
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture_theme(&stream, &theme);
+  if (!s) {
+    ok = false;
+  } else {
+    cs_keyvalue_pair_t pairs[] = {{"Key", "Value"}};
+    cs_keyvalue_render(&(cs_keyvalue_t){.pairs = pairs,
+                                        .count = 1,
+                                        .key_role = CS_ROLE_TEXT,
+                                        .key_role_set = true},
+                       s);
+    char buf[256];
+    capture(s, stream, buf, sizeof(buf));
+    ok = ok && strstr(buf, "\x1b[38;2;1;2;3mKey") != NULL &&
+         strstr(buf, "\x1b[38;2;4;5;6mKey") == NULL;
+  }
+
+  restore_env("APP_CLI_TEST_PROFILE", previous_profile);
+  restore_env("NO_COLOR", previous_no_color);
+  restore_env("APP_CLI_COLOR", previous_color);
+  restore_env("TERM", previous_term);
+  restore_env("FORCE_COLOR", previous_force);
+  restore_env("CLICOLOR", previous_clicolor);
+  restore_env("CLICOLOR_FORCE", previous_clicolor_force);
+  return ok;
+#else
+  return true;
+#endif
+}
+
+// A label that nearly fills the budget must be truncated, not allowed to push
+// the rendered line past `width`. (Regression: the label and percent were
+// written untruncated even after the bar was clamped to its 1-column floor, so
+// a 20-column budget rendered 31 columns.)
+static bool test_progress_respects_width_budget(void) {
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture(&stream);
+  if (!s) {
+    return false;
+  }
+  const int width = 20;
+  cs_progress_render(&(cs_progress_t){.label = "A very long build label",
+                                      .current = 10,
+                                      .total = 10,
+                                      .width = (size_t)width,
+                                      .show_percent = true},
+                     s);
+  char buf[256];
+  capture(s, stream, buf, sizeof(buf));
+  size_t len = strlen(buf);
+  if (len > 0 && buf[len - 1] == '\n') {
+    buf[len - 1] = '\0';  // measure the row, not the trailing newline
+  }
+  return app_text_width_utf8(buf) <= width && no_escapes(buf);
 }
 
 void run_components_unit_tests(unit_stats_t *stats) {
@@ -295,8 +448,14 @@ void run_components_unit_tests(unit_stats_t *stats) {
               "cs_theme resolves named themes and the default");
   unit_record(stats, test_progress_nan_is_safe(),
               "cs_progress tolerates a non-finite fraction");
+  unit_record(stats, test_progress_respects_width_budget(),
+              "cs_progress truncates a long label to its width budget");
   unit_record(stats, test_table_null_cells_is_safe(),
               "cs_table rejects row_count>0 with NULL cells");
+  unit_record(stats, test_table_respects_narrow_width_budget(),
+              "cs_table respects narrow width budgets");
   unit_record(stats, test_mono_theme_colored_on_truecolor(),
               "mono theme stays colored on a truecolor profile");
+  unit_record(stats, test_explicit_text_role_overrides_non_text_default(),
+              "explicit CS_ROLE_TEXT overrides non-text role defaults");
 }

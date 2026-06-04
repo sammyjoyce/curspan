@@ -21,8 +21,8 @@ static bool cs_list_emit_line(void *user, const char *bytes, size_t byte_count,
   (void)columns;
   cs_list_emit_ctx_t *ctx = user;
   if (ctx->line_index > 0) {
-    for (int i = 0; i < ctx->marker_cols; i++) {
-      cs_surface_write(ctx->surface, " ");
+    if (ctx->marker_cols > 0) {
+      cs_surface_repeat(ctx->surface, " ", (size_t)ctx->marker_cols);
     }
   }
   cs_surface_set_role(ctx->surface, ctx->text_role);
@@ -38,9 +38,10 @@ void cs_list_render(const cs_list_t *list, cs_surface_t *s) {
     return;
   }
   cs_caps_t caps = cs_surface_caps(s);
-  cs_role_t marker_role =
-      list->marker_role ? list->marker_role : CS_ROLE_ACCENT;
-  cs_role_t text_role = list->text_role ? list->text_role : CS_ROLE_TEXT;
+  cs_role_t marker_role = cs_role_or_default(
+      list->marker_role, list->marker_role_set, CS_ROLE_ACCENT);
+  cs_role_t text_role =
+      cs_role_or_default(list->text_role, list->text_role_set, CS_ROLE_TEXT);
   size_t width = list->width ? list->width : cs_surface_width(s);
   if (width == 0) {
     width = 80;

@@ -22,8 +22,10 @@ typedef struct cs_list {
   const char *const *items;
   size_t count;
   cs_list_style_t style;
-  cs_role_t marker_role;  // 0 => CS_ROLE_ACCENT
-  cs_role_t text_role;    // 0 => CS_ROLE_TEXT
+  cs_role_t marker_role;  // default: CS_ROLE_ACCENT
+  cs_role_t text_role;    // default: CS_ROLE_TEXT
+  bool marker_role_set;   // true when `marker_role` is intentional
+  bool text_role_set;     // true when `text_role` is intentional
   size_t width;           // 0 => the surface width
   int start;              // numbered lists: first number (0 => 1)
 } cs_list_t;

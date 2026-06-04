@@ -56,8 +56,7 @@ static bool test_color_parse_matches_cli_contract(void) {
   app_ui_color_t color;
   bool ok = app_ui_color_parse("#3aa0ff", &color) &&
             color.kind == APP_UI_COLOR_RGB && color.rgb.r == 0x3a &&
-            color.rgb.g == 0xa0 && color.rgb.b == 0xff &&
-            color.has_ansi16_hint;
+            color.rgb.g == 0xa0 && color.rgb.b == 0xff && color.has_ansi16_hint;
   ok = ok && app_ui_color_parse("ff8800", &color) &&
        color.kind == APP_UI_COLOR_RGB;
   ok = ok && app_ui_color_parse("12", &color) &&
@@ -65,8 +64,7 @@ static bool test_color_parse_matches_cli_contract(void) {
   ok = ok && app_ui_color_parse("200", &color) &&
        color.kind == APP_UI_COLOR_ANSI256 && color.ansi256 == 200;
   ok = ok && !app_ui_color_parse("#ggg", &color) &&
-       !app_ui_color_parse("300", &color) &&
-       !app_ui_color_parse("", &color);
+       !app_ui_color_parse("300", &color) && !app_ui_color_parse("", &color);
   return ok;
 }
 
@@ -92,8 +90,9 @@ static bool test_accent_override_updates_shared_roles(void) {
 }
 
 static bool test_light_title_preserves_cli_literal(void) {
-  const app_ui_color_t title = app_ui_theme_pick(
-      app_ui_theme_default_scheme(), APP_UI_ROLE_TITLE, APP_UI_THEME_MODE_LIGHT);
+  const app_ui_color_t title =
+      app_ui_theme_pick(app_ui_theme_default_scheme(), APP_UI_ROLE_TITLE,
+                        APP_UI_THEME_MODE_LIGHT);
   return title.kind == APP_UI_COLOR_RGB && title.rgb.r == 135 &&
          title.rgb.g == 94 && title.rgb.b == 20;
 }

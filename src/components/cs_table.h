@@ -35,9 +35,12 @@ typedef struct cs_table {
   const char *const *cells;  // row-major, column_count entries per row
   size_t row_count;
   bool header;            // render the header row + a separator rule
-  cs_role_t header_role;  // 0 => CS_ROLE_TITLE
-  cs_role_t text_role;    // 0 => CS_ROLE_TEXT
-  cs_role_t border_role;  // 0 => CS_ROLE_BORDER
+  cs_role_t header_role;  // default: CS_ROLE_TITLE
+  cs_role_t text_role;    // default: CS_ROLE_TEXT
+  cs_role_t border_role;  // default: CS_ROLE_BORDER
+  bool header_role_set;   // true when `header_role` is intentional
+  bool text_role_set;     // true when `text_role` is intentional
+  bool border_role_set;   // true when `border_role` is intentional
   size_t width;           // total budget (0 => the surface width)
   const char *gap;        // inter-column gap (NULL => "  ")
 } cs_table_t;

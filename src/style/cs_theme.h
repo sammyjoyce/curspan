@@ -49,6 +49,22 @@ typedef app_ui_theme_mode_id cs_mode_t;
 #define CS_MODE_DARK APP_UI_THEME_MODE_DARK
 #define CS_MODE_LIGHT APP_UI_THEME_MODE_LIGHT
 
+// Optional role fields in component props are zero-initialized for their
+// component-specific defaults, but CS_ROLE_TEXT is also enum value zero. Pair a
+// role field with a `*_role_set` flag when CS_ROLE_TEXT must be selected
+// explicitly where the default is another role.
+static inline bool cs_role_valid(cs_role_t role) {
+  return role >= 0 && role < APP_UI_ROLE_COUNT;
+}
+
+static inline cs_role_t cs_role_or_default(cs_role_t role, bool role_set,
+                                           cs_role_t default_role) {
+  if (role_set || role != CS_ROLE_TEXT) {
+    return cs_role_valid(role) ? role : default_role;
+  }
+  return default_role;
+}
+
 typedef struct cs_theme {
   app_ui_color_scheme_t scheme;  // the role table (by value, ~copyable)
   cs_mode_t mode;                // active light/dark mode
@@ -69,8 +85,9 @@ bool cs_theme_by_name(const char *name, cs_theme_t *out);
 const char *const *cs_theme_names(void);
 
 // Resolve the active mode from APP_CLI_TEST_THEME / APP_CLI_THEME
-// (auto|dark|light). "auto" and anything unknown resolve to dark. This is the
-// single owner of mode parsing (previously duplicated in cli_layout.c + tui.c).
+// (auto|dark|light). "auto" and anything unknown use the same OSC 11
+// background detection as the styled CLI when available, then fall back to
+// dark.
 cs_mode_t cs_theme_mode_resolve(void);
 
 // Override one role for both modes (the general form of the accent override).

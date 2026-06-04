@@ -22,8 +22,10 @@ typedef struct cs_progress {
   long current;          // with total > 0, fraction = current/total
   long total;            // 0 => use `value`
   size_t width;          // total columns (0 => the surface width)
-  cs_role_t bar_role;    // filled portion (0 => CS_ROLE_SUCCESS)
-  cs_role_t track_role;  // empty portion (0 => CS_ROLE_MUTED)
+  cs_role_t bar_role;    // filled portion (default: CS_ROLE_SUCCESS)
+  cs_role_t track_role;  // empty portion (default: CS_ROLE_MUTED)
+  bool bar_role_set;     // true when `bar_role` is intentional
+  bool track_role_set;   // true when `track_role` is intentional
   bool show_percent;     // append the percentage
 } cs_progress_t;
 

@@ -4,6 +4,7 @@
 
 #include "cs_table.h"
 
+#include <limits.h>
 #include <stdlib.h>
 
 #include "../ui/text_layout.h"
@@ -27,16 +28,16 @@ static void cs_table_write_cell(cs_surface_t *s, cs_role_t role,
   }
 
   if (align == CS_ALIGN_RIGHT) {
-    for (int i = 0; i < pad; i++) {
-      cs_surface_write(s, " ");
+    if (pad > 0) {
+      cs_surface_repeat(s, " ", (size_t)pad);
     }
   }
   cs_surface_set_role(s, role);
   cs_surface_write_n(s, text, bytes);
   cs_surface_reset(s);
   if (align == CS_ALIGN_LEFT) {
-    for (int i = 0; i < pad; i++) {
-      cs_surface_write(s, " ");
+    if (pad > 0) {
+      cs_surface_repeat(s, " ", (size_t)pad);
     }
   }
 }
@@ -45,19 +46,20 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
   if (!table || !s || !table->columns || table->column_count == 0) {
     return;
   }
-  // A non-zero row_count promises a cells array; without this guard the natural-
-  // width scan would dereference a NULL base pointer. (A header-only table is
-  // expressed as cells == NULL with row_count == 0.)
+  // A non-zero row_count promises a cells array; without this guard the
+  // natural width scan would dereference a NULL base pointer. (A header-only
+  // table is expressed as cells == NULL with row_count == 0.)
   if (table->row_count > 0 && !table->cells) {
     return;
   }
   const size_t ncol = table->column_count;
   cs_caps_t caps = cs_surface_caps(s);
-  cs_role_t header_role =
-      table->header_role ? table->header_role : CS_ROLE_TITLE;
-  cs_role_t text_role = table->text_role ? table->text_role : CS_ROLE_TEXT;
-  cs_role_t border_role =
-      table->border_role ? table->border_role : CS_ROLE_BORDER;
+  cs_role_t header_role = cs_role_or_default(
+      table->header_role, table->header_role_set, CS_ROLE_TITLE);
+  cs_role_t text_role =
+      cs_role_or_default(table->text_role, table->text_role_set, CS_ROLE_TEXT);
+  cs_role_t border_role = cs_role_or_default(
+      table->border_role, table->border_role_set, CS_ROLE_BORDER);
   const char *gap = table->gap ? table->gap : "  ";
   int gap_cols = app_text_width_utf8(gap);
   size_t budget = table->width ? table->width : cs_surface_width(s);
@@ -92,21 +94,38 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
   }
 
   // Shrink proportionally if the row overflows the budget.
-  int gaps_total = (ncol > 1) ? (int)(ncol - 1) * gap_cols : 0;
-  int content_budget = (int)budget - gaps_total;
-  if (content_budget < (int)ncol) {
-    content_budget = (int)ncol;  // at least 1 column per cell
+  const int budget_cols = budget > (size_t)INT_MAX ? INT_MAX : (int)budget;
+  const size_t gap_count = ncol > 1 ? ncol - 1 : 0;
+  if (gap_cols < 0) {
+    gap_cols = 0;
+  }
+  int gaps_total = (gap_cols > 0 && gap_count > (size_t)(INT_MAX / gap_cols))
+                       ? INT_MAX
+                       : (int)gap_count * gap_cols;
+  if (gaps_total >= budget_cols) {
+    // If separators alone would exhaust the whole row, drop them before
+    // shrinking cells. Rendering content under the caller's width budget beats
+    // preserving cosmetic inter-column whitespace.
+    gap = "";
+    gap_cols = 0;
+    gaps_total = 0;
+  }
+  int content_budget = budget_cols - gaps_total;
+  if (content_budget < 0) {
+    content_budget = 0;
   }
   int sum = 0;
   for (size_t c = 0; c < ncol; c++) {
     sum += widths[c];
   }
   if (sum > content_budget) {
+    int min_width = ncol <= (size_t)content_budget ? 1 : 0;
     int remaining = content_budget;
     for (size_t c = 0; c < ncol; c++) {
-      int scaled = (int)((long)widths[c] * content_budget / sum);
-      if (scaled < 1) {
-        scaled = 1;
+      int scaled =
+          sum > 0 ? (int)((long long)widths[c] * content_budget / sum) : 0;
+      if (scaled < min_width) {
+        scaled = min_width;
       }
       widths[c] = scaled;
       remaining -= scaled;
@@ -125,8 +144,8 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
           widest = c;
         }
       }
-      if (widths[widest] <= 1) {
-        break;  // every column is already at its 1-column floor
+      if (widths[widest] <= min_width) {
+        break;  // every column is already at its floor
       }
       widths[widest]--;
       remaining++;

@@ -11,14 +11,13 @@
 
 #include "design_tokens.h"
 
-#define UI_RGBH(rr, gg, bb, hint)             \
-  ((app_ui_color_t){.kind = APP_UI_COLOR_RGB, \
+#define UI_RGBH(rr, gg, bb, hint)              \
+  ((app_ui_color_t){.kind = APP_UI_COLOR_RGB,  \
                     .rgb = {(rr), (gg), (bb)}, \
-                    .has_ansi16_hint = true,  \
+                    .has_ansi16_hint = true,   \
                     .ansi16_hint = (hint)})
 
-#define UI_ADAPT(d, l) \
-  ((app_ui_adaptive_color_t){.dark = (d), .light = (l)})
+#define UI_ADAPT(d, l) ((app_ui_adaptive_color_t){.dark = (d), .light = (l)})
 
 static app_ui_color_t app_ui_rgbh(app_rgb_t rgb, uint8_t hint) {
   return (app_ui_color_t){.kind = APP_UI_COLOR_RGB,
@@ -36,63 +35,67 @@ static void app_ui_theme_init_default_scheme(void) {
   }
 
   const app_design_palette_t *p = &APP_DESIGN_PALETTE;
-  APP_UI_DEFAULT_SCHEME = (app_ui_color_scheme_t){
-      .roles =
-          {
-              [APP_UI_ROLE_TEXT] =
-                  UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
-              [APP_UI_ROLE_TITLE] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_DESCRIPTION] =
-                  UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
-              [APP_UI_ROLE_CODE] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 3), UI_RGBH(110, 78, 20, 3)),
-              [APP_UI_ROLE_PROGRAM] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_MUTED] =
-                  UI_ADAPT(app_ui_rgbh(p->muted, 8), UI_RGBH(120, 112, 105, 8)),
-              [APP_UI_ROLE_ACCENT] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_COMMENT] =
-                  UI_ADAPT(app_ui_rgbh(p->muted, 8), UI_RGBH(120, 112, 105, 8)),
-              [APP_UI_ROLE_FLAG] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_FLAG_DEFAULT] =
-                  UI_ADAPT(app_ui_rgbh(p->muted, 8), UI_RGBH(120, 112, 105, 8)),
-              [APP_UI_ROLE_COMMAND] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_QUOTED_STRING] =
-                  UI_ADAPT(app_ui_rgbh(p->green, 2), UI_RGBH(75, 115, 55, 2)),
-              [APP_UI_ROLE_ARGUMENT] =
-                  UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
-              [APP_UI_ROLE_HELP] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_DASH] =
-                  UI_ADAPT(app_ui_rgbh(p->muted, 8), UI_RGBH(120, 112, 105, 8)),
-              [APP_UI_ROLE_ERROR_HEADER_FG] =
-                  UI_ADAPT(UI_RGBH(255, 245, 235, 15), UI_RGBH(255, 255, 255, 15)),
-              [APP_UI_ROLE_ERROR_HEADER_BG] =
-                  UI_ADAPT(app_ui_rgbh(p->red, 1), UI_RGBH(180, 55, 50, 1)),
-              [APP_UI_ROLE_ERROR_DETAILS] =
-                  UI_ADAPT(app_ui_rgbh(p->red, 1), UI_RGBH(145, 40, 35, 1)),
-              [APP_UI_ROLE_SUCCESS] =
-                  UI_ADAPT(app_ui_rgbh(p->green, 2), UI_RGBH(75, 115, 55, 2)),
-              [APP_UI_ROLE_WARNING] =
-                  UI_ADAPT(app_ui_rgbh(p->yellow, 3), UI_RGBH(145, 105, 25, 3)),
-              [APP_UI_ROLE_INFO] =
-                  UI_ADAPT(app_ui_rgbh(p->blue, 4), UI_RGBH(60, 110, 145, 4)),
-              [APP_UI_ROLE_BORDER] =
-                  UI_ADAPT(app_ui_rgbh(p->muted, 7), UI_RGBH(165, 158, 150, 8)),
-              [APP_UI_ROLE_SELECTION_FG] =
-                  UI_ADAPT(app_ui_rgbh(p->near_black, 0), UI_RGBH(255, 255, 255, 15)),
-              [APP_UI_ROLE_SELECTION_BG] =
-                  UI_ADAPT(app_ui_rgbh(p->amber, 11), UI_RGBH(135, 94, 20, 3)),
-              [APP_UI_ROLE_PANEL] =
-                  UI_ADAPT(app_ui_rgbh(p->panel, 0), UI_RGBH(250, 248, 244, 15)),
-              [APP_UI_ROLE_PANEL_ALT] =
-                  UI_ADAPT(app_ui_rgbh(p->panel_alt, 0), UI_RGBH(242, 238, 232, 7)),
-          },
-  };
+  APP_UI_DEFAULT_SCHEME =
+      (app_ui_color_scheme_t){
+          .roles =
+              {
+                  [APP_UI_ROLE_TEXT] =
+                      UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
+                  [APP_UI_ROLE_TITLE] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                 UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_DESCRIPTION] =
+                      UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
+                  [APP_UI_ROLE_CODE] = UI_ADAPT(app_ui_rgbh(p->amber, 3),
+                                                UI_RGBH(110, 78, 20, 3)),
+                  [APP_UI_ROLE_PROGRAM] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                   UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_MUTED] = UI_ADAPT(app_ui_rgbh(p->muted, 8),
+                                                 UI_RGBH(120, 112, 105, 8)),
+                  [APP_UI_ROLE_ACCENT] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                  UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_COMMENT] = UI_ADAPT(app_ui_rgbh(p->muted, 8),
+                                                   UI_RGBH(120, 112, 105, 8)),
+                  [APP_UI_ROLE_FLAG] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_FLAG_DEFAULT] = UI_ADAPT(
+                      app_ui_rgbh(p->muted, 8), UI_RGBH(120, 112, 105, 8)),
+                  [APP_UI_ROLE_COMMAND] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                   UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_QUOTED_STRING] = UI_ADAPT(
+                      app_ui_rgbh(p->green, 2), UI_RGBH(75, 115, 55, 2)),
+                  [APP_UI_ROLE_ARGUMENT] =
+                      UI_ADAPT(app_ui_rgbh(p->fg, 7), UI_RGBH(60, 56, 54, 0)),
+                  [APP_UI_ROLE_HELP] = UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                                                UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_DASH] = UI_ADAPT(app_ui_rgbh(p->muted, 8),
+                                                UI_RGBH(120, 112, 105, 8)),
+                  [APP_UI_ROLE_ERROR_HEADER_FG] = UI_ADAPT(
+                      UI_RGBH(255, 245, 235, 15), UI_RGBH(255, 255, 255, 15)),
+                  [APP_UI_ROLE_ERROR_HEADER_BG] =
+                      UI_ADAPT(app_ui_rgbh(p->red, 1), UI_RGBH(180, 55, 50, 1)),
+                  [APP_UI_ROLE_ERROR_DETAILS] =
+                      UI_ADAPT(app_ui_rgbh(p->red, 1), UI_RGBH(145, 40, 35, 1)),
+                  [APP_UI_ROLE_SUCCESS] = UI_ADAPT(app_ui_rgbh(p->green, 2),
+                                                   UI_RGBH(75, 115, 55, 2)),
+                  [APP_UI_ROLE_WARNING] = UI_ADAPT(app_ui_rgbh(p->yellow, 3),
+                                                   UI_RGBH(145, 105, 25, 3)),
+                  [APP_UI_ROLE_INFO] = UI_ADAPT(app_ui_rgbh(p->blue, 4),
+                                                UI_RGBH(60, 110, 145, 4)),
+                  [APP_UI_ROLE_BORDER] = UI_ADAPT(app_ui_rgbh(p->muted, 7),
+                                                  UI_RGBH(165, 158, 150, 8)),
+                  [APP_UI_ROLE_SELECTION_FG] =
+                      UI_ADAPT(app_ui_rgbh(p->near_black, 0),
+                               UI_RGBH(255, 255, 255, 15)),
+                  [APP_UI_ROLE_SELECTION_BG] =
+                      UI_ADAPT(app_ui_rgbh(p->amber, 11),
+                               UI_RGBH(135, 94, 20, 3)),
+                  [APP_UI_ROLE_PANEL] = UI_ADAPT(app_ui_rgbh(p->panel, 0),
+                                                 UI_RGBH(250, 248, 244, 15)),
+                  [APP_UI_ROLE_PANEL_ALT] =
+                      UI_ADAPT(app_ui_rgbh(p->panel_alt, 0),
+                               UI_RGBH(242, 238, 232, 7)),
+              },
+      };
 
   APP_UI_DEFAULT_SCHEME_READY = true;
 }
@@ -233,8 +236,8 @@ bool app_ui_color_parse(const char *spec, app_ui_color_t *out) {
         return false;
       }
       if (v < 16) {
-        *out = (app_ui_color_t){.kind = APP_UI_COLOR_ANSI16,
-                                .ansi16 = (uint8_t)v};
+        *out =
+            (app_ui_color_t){.kind = APP_UI_COLOR_ANSI16, .ansi16 = (uint8_t)v};
       } else {
         *out = (app_ui_color_t){.kind = APP_UI_COLOR_ANSI256,
                                 .ansi256 = (uint8_t)v};
@@ -252,10 +255,9 @@ void app_ui_theme_apply_accent(app_ui_color_scheme_t *scheme,
     return;
   }
   static const app_ui_role_id accent_roles[] = {
-      APP_UI_ROLE_TITLE,        APP_UI_ROLE_PROGRAM,
-      APP_UI_ROLE_COMMAND,      APP_UI_ROLE_FLAG,
-      APP_UI_ROLE_HELP,         APP_UI_ROLE_CODE,
-      APP_UI_ROLE_ACCENT,       APP_UI_ROLE_SELECTION_BG,
+      APP_UI_ROLE_TITLE,  APP_UI_ROLE_PROGRAM,      APP_UI_ROLE_COMMAND,
+      APP_UI_ROLE_FLAG,   APP_UI_ROLE_HELP,         APP_UI_ROLE_CODE,
+      APP_UI_ROLE_ACCENT, APP_UI_ROLE_SELECTION_BG,
   };
   for (size_t i = 0; i < sizeof(accent_roles) / sizeof(accent_roles[0]); i++) {
     scheme->roles[accent_roles[i]].dark = accent;

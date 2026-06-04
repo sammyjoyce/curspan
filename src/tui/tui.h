@@ -71,6 +71,12 @@ void tui_set_color_enabled(bool enabled);
 // allowed it, the terminal supports color, and start_color() succeeded).
 bool tui_colors_enabled(void);
 
+// The background color index the TUI binds its pairs against (-1 when the
+// terminal's default background is in use). Exposed so a cs_surface can bind
+// its own theme-resolved pairs against the same background the surrounding TUI
+// uses.
+short tui_default_bg(void);
+
 // Window helpers
 APP_NODISCARD tui_window_t *tui_create_window(int height, int width, int y,
                                               int x);

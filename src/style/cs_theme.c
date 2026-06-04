@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef APP_ENABLE_CLI_STYLE
+#include "../cli/style/cli_term.h"
+#endif
+
 cs_mode_t cs_theme_mode_resolve(void) {
   const char *theme = getenv("APP_CLI_TEST_THEME");
   if (!theme || !theme[0]) {
@@ -15,6 +19,16 @@ cs_mode_t cs_theme_mode_resolve(void) {
   if (theme && strcmp(theme, "light") == 0) {
     return CS_MODE_LIGHT;
   }
+  if (theme && strcmp(theme, "dark") == 0) {
+    return CS_MODE_DARK;
+  }
+#ifdef APP_ENABLE_CLI_STYLE
+  // Match the styled CLI resolver: unset, "auto", and unknown values query OSC
+  // 11 when policy allows it, then fall back to dark when detection cannot run.
+  if (app_cli_term_detect_background(NULL, NULL) == APP_CLI_BG_LIGHT) {
+    return CS_MODE_LIGHT;
+  }
+#endif
   return CS_MODE_DARK;
 }
 
