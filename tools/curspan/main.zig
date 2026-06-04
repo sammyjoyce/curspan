@@ -127,10 +127,18 @@ fn flush(ctx: Ctx, buf: *std.ArrayList(u8)) !void {
 // absolute paths and any ".." segment so `add`/`check` can never reach outside
 // the source root or the destination project. Split on both POSIX and Windows
 // separators regardless of the build host: on a Windows host `std.fs.path.join`
-// honors `\`, so a "..\\.." segment in an untrusted `--registry` would escape a
-// gate that only split on '/'.
+// honors `\`, so a "..\\.." segment in an untrusted registry entry would escape
+// a gate that only split on '/'.
 fn pathIsUnsafe(p: []const u8) bool {
     if (std.fs.path.isAbsolute(p)) return true;
+    return pathHasParentSegment(p);
+}
+
+// CLI options such as --registry and --root may be absolute because build.zig
+// passes LazyPath values to `curspan check`, but they must not contain parent
+// traversal segments. Keep this separate from pathIsUnsafe(), which guards
+// untrusted registry entries that are always expected to be relative.
+fn pathHasParentSegment(p: []const u8) bool {
     var it = std.mem.splitAny(u8, p, "/\\");
     while (it.next()) |seg| {
         if (std.mem.eql(u8, seg, "..")) return true;
@@ -143,6 +151,24 @@ test "pathIsUnsafe rejects traversal with either path separator" {
     try std.testing.expect(pathIsUnsafe("foo/../bar"));
     try std.testing.expect(pathIsUnsafe("foo\\..\\bar"));
     try std.testing.expect(!pathIsUnsafe("src/components/cs_table.c"));
+}
+
+test "pathHasParentSegment allows absolute LazyPaths but rejects traversal" {
+    try std.testing.expect(pathHasParentSegment("../registry.json"));
+    try std.testing.expect(pathHasParentSegment("foo\\..\\bar"));
+    try std.testing.expect(!pathHasParentSegment("/abs/path/registry.json"));
+}
+
+fn validateOptions(opts: Options) void {
+    if (pathHasParentSegment(opts.registry)) {
+        fail("unsafe --registry path '{s}'", .{opts.registry});
+    }
+    if (pathHasParentSegment(opts.root)) {
+        fail("unsafe --root path '{s}'", .{opts.root});
+    }
+    if (pathIsUnsafe(opts.dest)) {
+        fail("unsafe --dest path '{s}'", .{opts.dest});
+    }
 }
 
 // One catalog row: "  <name padded>  <description>".
@@ -346,6 +372,8 @@ pub fn main(init: std.process.Init) !void {
             fail("unexpected argument '{s}'", .{a});
         }
     }
+
+    validateOptions(opts);
 
     const parsed = try loadRegistry(ctx, opts.registry);
     const reg = parsed.value;

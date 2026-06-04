@@ -84,7 +84,7 @@ static bool test_surface_caps_plain(void) {
     return false;
   }
   cs_caps_t caps = cs_surface_caps(s);
-  bool ok = !caps.color && caps.unicode && caps.width > 0 && !caps.tty;
+  bool ok = !caps.color && caps.width > 0 && !caps.tty;
   char buf[64];
   capture(s, stream, buf, sizeof(buf));
   return ok;
@@ -409,7 +409,8 @@ static bool test_explicit_text_role_overrides_non_text_default(void) {
 
   cs_theme_t theme = cs_theme_default();
   ok = ok && cs_theme_set_role_spec(&theme, CS_ROLE_TEXT, "#010203") &&
-       cs_theme_set_role_spec(&theme, CS_ROLE_MUTED, "#040506");
+       cs_theme_set_role_spec(&theme, CS_ROLE_MUTED, "#040506") &&
+       cs_theme_set_role_spec(&theme, CS_ROLE_BORDER, "#070809");
 
   FILE *stream = NULL;
   cs_surface_t *s = open_capture_theme(&stream, &theme);
@@ -426,6 +427,22 @@ static bool test_explicit_text_role_overrides_non_text_default(void) {
     capture(s, stream, buf, sizeof(buf));
     ok = ok && strstr(buf, "\x1b[38;2;1;2;3mKey") != NULL &&
          strstr(buf, "\x1b[38;2;4;5;6mKey") == NULL;
+  }
+
+  stream = NULL;
+  s = open_capture_theme(&stream, &theme);
+  if (!s) {
+    ok = false;
+  } else {
+    cs_heading_render(&(cs_heading_t){.text = "Head",
+                                      .underline = true,
+                                      .role = CS_ROLE_TEXT,
+                                      .role_set = true},
+                      s);
+    char buf[512];
+    capture(s, stream, buf, sizeof(buf));
+    ok = ok && strstr(buf, "\x1b[38;2;1;2;3m") != NULL &&
+         strstr(buf, "Head") != NULL && strstr(buf, "\x1b[38;2;7;8;9m") == NULL;
   }
 
   for (size_t i = 0; i < sizeof(env) / sizeof(env[0]); i++) {

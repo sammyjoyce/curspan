@@ -584,6 +584,7 @@ pub fn build(b: *std.Build) void {
             "src/style/color_math.c",
             "src/style/design_tokens.c",
             "src/style/ui_theme.c",
+            "src/style/cs_theme.c",
             "src/tui/tui.c",
             "src/tui/tui_menu.c",
             "src/tui/tui_menu_adapter.c",

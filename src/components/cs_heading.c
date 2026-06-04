@@ -44,7 +44,9 @@ void cs_heading_render(const cs_heading_t *heading, cs_surface_t *s) {
   if (heading->underline) {
     int cols = app_text_width_utf8(heading->text);
     if (cols > 0) {
-      cs_rule_render(&(cs_rule_t){.width = (size_t)cols, .role = role}, s);
+      cs_rule_render(
+          &(cs_rule_t){.width = (size_t)cols, .role = role, .role_set = true},
+          s);
     }
   }
 }
