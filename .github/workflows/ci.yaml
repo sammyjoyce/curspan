@@ -296,6 +296,17 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
 
+      # On the Namespace runner this persists Zig's global compiler/std cache
+      # (~/.cache/zig) and the repo-local .zig-cache across runs so the
+      # clang-tidy `zig build` step below reuses content-hashed objects instead
+      # of recompiling every TU. No-op on hosted runners.
+      - name: Cache Zig build
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cache/zig
+            .zig-cache
+
       - name: Install Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -554,6 +565,16 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: ${{ env.ZIG_VERSION }}
+
+      # On the Namespace runner this persists Zig's compiler/std cache and the
+      # repo-local .zig-cache across runs so the SBOM build reuses
+      # content-hashed objects instead of recompiling. No-op on hosted runners.
+      - name: Cache Zig build
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cache/zig
+            .zig-cache
 
       - name: Install syft
         run: |
