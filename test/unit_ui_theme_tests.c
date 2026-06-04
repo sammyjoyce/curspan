@@ -98,6 +98,32 @@ static bool test_light_title_preserves_cli_literal(void) {
          title.rgb.g == 94 && title.rgb.b == 20;
 }
 
+// An explicit palette index must survive a truecolor profile as INDEXED, not
+// collapse to NONE — otherwise an all-indexed theme (e.g. "mono") renders
+// colorless on the common truecolor terminal. (Regression: the resolver
+// previously emitted color under TRUECOLOR only for RGB inputs.)
+static bool test_indexed_color_survives_truecolor(void) {
+  const app_ui_color_t ansi16 = {.kind = APP_UI_COLOR_ANSI16, .ansi16 = 7};
+  const app_ui_color_t ansi256 = {.kind = APP_UI_COLOR_ANSI256, .ansi256 = 200};
+  const app_ui_color_t rgb = {.kind = APP_UI_COLOR_RGB,
+                              .rgb = {.r = 0x10, .g = 0x20, .b = 0x30}};
+
+  app_ui_resolved_color_t r16 =
+      app_ui_color_resolve(ansi16, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
+  app_ui_resolved_color_t r256 =
+      app_ui_color_resolve(ansi256, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
+  app_ui_resolved_color_t rrgb =
+      app_ui_color_resolve(rgb, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
+  // Lower profiles already handled indices; confirm they still do.
+  app_ui_resolved_color_t r16_at_256 =
+      app_ui_color_resolve(ansi16, APP_CLI_COLOR_PROFILE_ANSI256, 256);
+
+  return r16.kind == APP_UI_RESOLVED_INDEXED && r16.index == 7 &&
+         r256.kind == APP_UI_RESOLVED_INDEXED && r256.index == 200 &&
+         rrgb.kind == APP_UI_RESOLVED_RGB && rrgb.rgb.r == 0x10 &&
+         r16_at_256.kind == APP_UI_RESOLVED_INDEXED && r16_at_256.index == 7;
+}
+
 void run_ui_theme_unit_tests(unit_stats_t *stats) {
   unit_record(stats, test_default_dark_roles_use_design_palette(),
               "ui theme dark roles derive from design palette");
@@ -107,4 +133,6 @@ void run_ui_theme_unit_tests(unit_stats_t *stats) {
               "APP_CLI_ACCENT recolors shared accent roles");
   unit_record(stats, test_light_title_preserves_cli_literal(),
               "ui theme light title preserves existing CLI literal");
+  unit_record(stats, test_indexed_color_survives_truecolor(),
+              "ui resolver passes explicit palette indices through truecolor");
 }

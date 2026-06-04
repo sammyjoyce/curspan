@@ -65,6 +65,12 @@ static void curses_set_color(cs_surface_t *s, cs_role_t role, bool bg) {
   (void)bg;  // pairs fix fg+bg together; see cs_surface_set_role_bg
   WINDOW *w = curses_win(s);
   if (w && tui_colors_enabled()) {
+    // Clear any current color pair before applying the new one. wattron ORs the
+    // pair bits, so two set_role calls before a reset (which the surface API
+    // documents as legal — "additive until reset") would otherwise combine into
+    // a corrupted third pair index. A_COLOR is just the color field, so this
+    // leaves bold/dim/underline intact.
+    wattroff(w, A_COLOR);
     wattron(w, COLOR_PAIR(cs_role_to_pair(role)));
   }
 }

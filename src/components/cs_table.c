@@ -45,6 +45,12 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
   if (!table || !s || !table->columns || table->column_count == 0) {
     return;
   }
+  // A non-zero row_count promises a cells array; without this guard the natural-
+  // width scan would dereference a NULL base pointer. (A header-only table is
+  // expressed as cells == NULL with row_count == 0.)
+  if (table->row_count > 0 && !table->cells) {
+    return;
+  }
   const size_t ncol = table->column_count;
   cs_caps_t caps = cs_surface_caps(s);
   cs_role_t header_role =
@@ -108,6 +114,22 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
     // Hand any rounding leftover to the first column.
     if (remaining > 0) {
       widths[0] += remaining;
+    }
+    // The min-1 clamp above can push the assigned widths past the budget when
+    // several columns floor to 0 and round up. Reclaim that overrun from the
+    // widest columns so the table never renders wider than requested.
+    while (remaining < 0) {
+      size_t widest = 0;
+      for (size_t c = 1; c < ncol; c++) {
+        if (widths[c] > widths[widest]) {
+          widest = c;
+        }
+      }
+      if (widths[widest] <= 1) {
+        break;  // every column is already at its 1-column floor
+      }
+      widths[widest]--;
+      remaining++;
     }
   }
 

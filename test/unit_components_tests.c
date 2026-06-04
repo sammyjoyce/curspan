@@ -7,6 +7,7 @@
  * is stable, and a component NEVER emits an escape sequence onto a pipe.
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -218,6 +219,62 @@ static bool test_theme_registry(void) {
   return ok && saw_amber && saw_mono;
 }
 
+// A non-finite progress fraction must not hang or emit garbage. (Regression: a
+// NaN escaped the [0,1] clamp, making the bar-fill repeat counts wrap huge.)
+static bool test_progress_nan_is_safe(void) {
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture(&stream);
+  if (!s) {
+    return false;
+  }
+  cs_progress_render(&(cs_progress_t){.value = NAN,
+                                      .total = 0,
+                                      .width = 20,
+                                      .show_percent = true},
+                     s);
+  char buf[256];
+  capture(s, stream, buf, sizeof(buf));
+  // NaN folds to 0%, and the call returns promptly (no hang).
+  return strstr(buf, "0%") && no_escapes(buf);
+}
+
+// A table with row_count > 0 but cells == NULL must not dereference NULL.
+// (Regression: the natural-width scan loaded through the NULL cells pointer.)
+static bool test_table_null_cells_is_safe(void) {
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture(&stream);
+  if (!s) {
+    return false;
+  }
+  cs_table_column_t cols[] = {{.header = "Name"}, {.header = "Status"}};
+  cs_table_render(&(cs_table_t){.columns = cols,
+                                .column_count = 2,
+                                .cells = NULL,
+                                .row_count = 3,
+                                .header = true,
+                                .width = 40},
+                  s);
+  char buf[64];
+  capture(s, stream, buf, sizeof(buf));
+  // Invalid prop combo is rejected (no output), and nothing crashes.
+  return buf[0] == '\0';
+}
+
+// The all-indexed "mono" theme must still resolve to concrete colors on a
+// truecolor terminal. (Regression: explicit indices collapsed to NONE there.)
+static bool test_mono_theme_colored_on_truecolor(void) {
+  cs_theme_t mono;
+  if (!cs_theme_by_name("mono", &mono)) {
+    return false;
+  }
+  app_ui_resolved_color_t text = cs_theme_resolve(
+      &mono, CS_ROLE_TEXT, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
+  app_ui_resolved_color_t border = cs_theme_resolve(
+      &mono, CS_ROLE_BORDER, APP_CLI_COLOR_PROFILE_TRUECOLOR, 256);
+  return text.kind == APP_UI_RESOLVED_INDEXED &&
+         border.kind == APP_UI_RESOLVED_INDEXED;
+}
+
 void run_components_unit_tests(unit_stats_t *stats) {
   unit_record(stats, test_surface_caps_plain(),
               "surface reports plain caps on a non-tty stream");
@@ -236,4 +293,10 @@ void run_components_unit_tests(unit_stats_t *stats) {
   unit_record(stats, test_spinner_plain(), "cs_spinner renders a frame");
   unit_record(stats, test_theme_registry(),
               "cs_theme resolves named themes and the default");
+  unit_record(stats, test_progress_nan_is_safe(),
+              "cs_progress tolerates a non-finite fraction");
+  unit_record(stats, test_table_null_cells_is_safe(),
+              "cs_table rejects row_count>0 with NULL cells");
+  unit_record(stats, test_mono_theme_colored_on_truecolor(),
+              "mono theme stays colored on a truecolor profile");
 }

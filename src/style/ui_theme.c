@@ -124,10 +124,24 @@ app_ui_resolved_color_t app_ui_color_resolve(app_ui_color_t color,
     break;
   }
 
-  if (profile == APP_CLI_COLOR_PROFILE_TRUECOLOR &&
-      color.kind == APP_UI_COLOR_RGB) {
-    return (app_ui_resolved_color_t){.kind = APP_UI_RESOLVED_RGB,
-                                     .rgb = color.rgb};
+  if (profile == APP_CLI_COLOR_PROFILE_TRUECOLOR) {
+    if (color.kind == APP_UI_COLOR_RGB) {
+      return (app_ui_resolved_color_t){.kind = APP_UI_RESOLVED_RGB,
+                                       .rgb = color.rgb};
+    }
+    // An explicit palette index renders fine on a truecolor terminal, so pass
+    // it through as INDEXED rather than dropping it. Without this, an
+    // all-indexed theme (e.g. "mono", whose every role is an ANSI16 index)
+    // would resolve to NONE and render colorless on the common truecolor
+    // profile.
+    if (color.kind == APP_UI_COLOR_ANSI256) {
+      return (app_ui_resolved_color_t){.kind = APP_UI_RESOLVED_INDEXED,
+                                       .index = color.ansi256};
+    }
+    if (color.kind == APP_UI_COLOR_ANSI16) {
+      return (app_ui_resolved_color_t){.kind = APP_UI_RESOLVED_INDEXED,
+                                       .index = color.ansi16};
+    }
   }
 
   if (profile == APP_CLI_COLOR_PROFILE_ANSI256) {

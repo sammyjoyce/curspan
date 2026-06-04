@@ -23,6 +23,13 @@ void cs_progress_render(const cs_progress_t *progress, cs_surface_t *s) {
   if (fraction > 1.0) {
     fraction = 1.0;
   }
+  // A NaN passes both comparisons above (every compare with NaN is false), so
+  // guard it explicitly: an unhandled NaN would make (int)(fraction * cols) UB
+  // and the bar-fill repeat counts wrap to a near-infinite loop. (+/-inf are
+  // already folded to 1.0 / 0.0 by the clamps.)
+  if (fraction != fraction) {
+    fraction = 0.0;
+  }
 
   cs_role_t bar_role =
       progress->bar_role ? progress->bar_role : CS_ROLE_SUCCESS;
