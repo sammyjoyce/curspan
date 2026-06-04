@@ -37,8 +37,11 @@ bool app_cli_render_ctx_init(app_cli_render_ctx_t *ctx,
   if (ctx->styled) {
     app_cli_color_scheme_t scheme = *app_cli_theme_default_scheme();
     app_cli_theme_apply_env_overrides(&scheme);
-    app_cli_styles_compile(&ctx->styles, &scheme, cs_theme_mode_resolve(),
-                           ctx->term.profile, ctx->term.color_count);
+    const app_cli_theme_mode_id mode = cs_theme_mode_resolve() == CS_MODE_LIGHT
+                                           ? APP_CLI_THEME_MODE_LIGHT
+                                           : APP_CLI_THEME_MODE_DARK;
+    app_cli_styles_compile(&ctx->styles, &scheme, mode, ctx->term.profile,
+                           ctx->term.color_count);
   }
   return ctx->styled;
 }
