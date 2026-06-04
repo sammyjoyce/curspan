@@ -16,7 +16,7 @@ import {
 export const triggers = {};
 export const thermoNuclearReviewAgent = createAgent(() => ({
   sandbox: local({ env: { GH_TOKEN: process.env.GH_TOKEN } }),
-  model: "gateway/xai/grok-composer-2.5-fast",
+  model: "gateway/gpt-5.5",
 }));
 
 // Re-exported so importers (agent tests, workflow helpers) keep their entrypoints.
@@ -55,7 +55,7 @@ export async function runThermoNuclearReview({
   return runFlueReviewAgent({
     init,
     skillName: "thermo-nuclear-code-quality-review",
-    model: "gateway/xai/grok-composer-2.5-fast",
+    model: "gateway/gpt-5.5",
     args: { prNumber, repository, prWorktree },
     resultSchema: thermoNuclearResultSchema,
     extractFromTranscript: extractThermoNuclearResultFromTranscript,
