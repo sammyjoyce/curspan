@@ -44,27 +44,10 @@ static bool no_escapes(const char *buf) {
   return strstr(buf, "\x1b") == NULL;
 }
 
-static char *copy_env(const char *name) {
-  const char *value = getenv(name);
-  if (!value) {
-    return NULL;
-  }
-  size_t len = strlen(value) + 1;
-  char *copy = malloc(len);
-  if (copy) {
-    memcpy(copy, value, len);
-  }
-  return copy;
-}
-
-static void restore_env(const char *name, char *value) {
-  if (value) {
-    setenv(name, value, 1);
-    free(value);
-  } else {
-    unsetenv(name);
-  }
-}
+typedef struct test_env_save {
+  const char *name;
+  char *value;
+} test_env_save_t;
 
 static bool rows_within_width(const char *buf, int width) {
   const char *line = buf;
@@ -108,9 +91,21 @@ static bool test_surface_caps_plain(void) {
 }
 
 static bool test_surface_caps_ascii_locale(void) {
-  char *previous_lc_all = copy_env("LC_ALL");
-  char *previous_lc_ctype = copy_env("LC_CTYPE");
-  char *previous_lang = copy_env("LANG");
+  test_env_save_t env[] = {
+      {"LC_ALL", NULL}, {"LC_CTYPE", NULL}, {"LANG", NULL}};
+  bool ok = true;
+  for (size_t i = 0; i < sizeof(env) / sizeof(env[0]); i++) {
+    const char *value = getenv(env[i].name);
+    if (value) {
+      size_t len = strlen(value) + 1;
+      env[i].value = malloc(len);
+      if (!env[i].value) {
+        ok = false;
+      } else {
+        memcpy(env[i].value, value, len);
+      }
+    }
+  }
 
   setenv("LC_ALL", "C", 1);
   unsetenv("LC_CTYPE");
@@ -118,7 +113,7 @@ static bool test_surface_caps_ascii_locale(void) {
 
   FILE *stream = NULL;
   cs_surface_t *s = open_capture(&stream);
-  bool ok = s != NULL;
+  ok = ok && s != NULL;
   if (s) {
     cs_caps_t caps = cs_surface_caps(s);
     ok = ok && !caps.unicode;
@@ -128,9 +123,14 @@ static bool test_surface_caps_ascii_locale(void) {
     ok = ok && strcmp(buf, "---\n") == 0;
   }
 
-  restore_env("LC_ALL", previous_lc_all);
-  restore_env("LC_CTYPE", previous_lc_ctype);
-  restore_env("LANG", previous_lang);
+  for (size_t i = 0; i < sizeof(env) / sizeof(env[0]); i++) {
+    if (env[i].value) {
+      setenv(env[i].name, env[i].value, 1);
+      free(env[i].value);
+    } else {
+      unsetenv(env[i].name);
+    }
+  }
   return ok;
 }
 
@@ -381,13 +381,23 @@ static bool test_mono_theme_colored_on_truecolor(void) {
 
 static bool test_explicit_text_role_overrides_non_text_default(void) {
 #ifdef APP_ENABLE_CLI_STYLE
-  char *previous_profile = copy_env("APP_CLI_TEST_PROFILE");
-  char *previous_no_color = copy_env("NO_COLOR");
-  char *previous_color = copy_env("APP_CLI_COLOR");
-  char *previous_term = copy_env("TERM");
-  char *previous_force = copy_env("FORCE_COLOR");
-  char *previous_clicolor = copy_env("CLICOLOR");
-  char *previous_clicolor_force = copy_env("CLICOLOR_FORCE");
+  test_env_save_t env[] = {{"APP_CLI_TEST_PROFILE", NULL}, {"NO_COLOR", NULL},
+                           {"APP_CLI_COLOR", NULL},        {"TERM", NULL},
+                           {"FORCE_COLOR", NULL},          {"CLICOLOR", NULL},
+                           {"CLICOLOR_FORCE", NULL}};
+  bool ok = true;
+  for (size_t i = 0; i < sizeof(env) / sizeof(env[0]); i++) {
+    const char *value = getenv(env[i].name);
+    if (value) {
+      size_t len = strlen(value) + 1;
+      env[i].value = malloc(len);
+      if (!env[i].value) {
+        ok = false;
+      } else {
+        memcpy(env[i].value, value, len);
+      }
+    }
+  }
 
   unsetenv("NO_COLOR");
   unsetenv("APP_CLI_COLOR");
@@ -398,8 +408,8 @@ static bool test_explicit_text_role_overrides_non_text_default(void) {
   setenv("APP_CLI_TEST_PROFILE", "truecolor", 1);
 
   cs_theme_t theme = cs_theme_default();
-  bool ok = cs_theme_set_role_spec(&theme, CS_ROLE_TEXT, "#010203") &&
-            cs_theme_set_role_spec(&theme, CS_ROLE_MUTED, "#040506");
+  ok = ok && cs_theme_set_role_spec(&theme, CS_ROLE_TEXT, "#010203") &&
+       cs_theme_set_role_spec(&theme, CS_ROLE_MUTED, "#040506");
 
   FILE *stream = NULL;
   cs_surface_t *s = open_capture_theme(&stream, &theme);
@@ -418,13 +428,14 @@ static bool test_explicit_text_role_overrides_non_text_default(void) {
          strstr(buf, "\x1b[38;2;4;5;6mKey") == NULL;
   }
 
-  restore_env("APP_CLI_TEST_PROFILE", previous_profile);
-  restore_env("NO_COLOR", previous_no_color);
-  restore_env("APP_CLI_COLOR", previous_color);
-  restore_env("TERM", previous_term);
-  restore_env("FORCE_COLOR", previous_force);
-  restore_env("CLICOLOR", previous_clicolor);
-  restore_env("CLICOLOR_FORCE", previous_clicolor_force);
+  for (size_t i = 0; i < sizeof(env) / sizeof(env[0]); i++) {
+    if (env[i].value) {
+      setenv(env[i].name, env[i].value, 1);
+      free(env[i].value);
+    } else {
+      unsetenv(env[i].name);
+    }
+  }
   return ok;
 #else
   return true;
