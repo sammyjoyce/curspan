@@ -122,8 +122,7 @@ void cs_table_render(const cs_table_t *table, cs_surface_t *s) {
     int min_width = ncol <= (size_t)content_budget ? 1 : 0;
     int remaining = content_budget;
     for (size_t c = 0; c < ncol; c++) {
-      int scaled =
-          sum > 0 ? (int)((long long)widths[c] * content_budget / sum) : 0;
+      int scaled = (int)((long long)widths[c] * content_budget / sum);
       if (scaled < min_width) {
         scaled = min_width;
       }

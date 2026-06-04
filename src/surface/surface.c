@@ -21,6 +21,41 @@ cs_surface_t *cs_surface_alloc_(const cs_theme_t *theme) {
   return s;
 }
 
+static bool contains_ascii_ci(const char *haystack, const char *needle) {
+  if (!haystack || !needle || !needle[0]) {
+    return false;
+  }
+  for (const char *h = haystack; *h; h++) {
+    const char *hp = h;
+    const char *np = needle;
+    while (*hp && *np) {
+      char hc = (*hp >= 'A' && *hp <= 'Z') ? (char)(*hp - 'A' + 'a') : *hp;
+      char nc = (*np >= 'A' && *np <= 'Z') ? (char)(*np - 'A' + 'a') : *np;
+      if (hc != nc) {
+        break;
+      }
+      hp++;
+      np++;
+    }
+    if (!*np) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool cs_surface_unicode_enabled_(void) {
+  const char *vars[] = {"LC_ALL", "LC_CTYPE", "LANG"};
+  for (size_t i = 0; i < sizeof(vars) / sizeof(vars[0]); i++) {
+    const char *value = getenv(vars[i]);
+    if (value && value[0]) {
+      return contains_ascii_ci(value, "utf-8") ||
+             contains_ascii_ci(value, "utf8");
+    }
+  }
+  return false;
+}
+
 // ---- stream backend -------------------------------------------------------
 
 static void stream_set_color(cs_surface_t *s, cs_role_t role, bool bg) {
@@ -127,7 +162,7 @@ cs_surface_t *cs_surface_stream_new(FILE *stream, const app_config_t *config,
   s->caps = (cs_caps_t){
       .tty = s->term.is_tty,
       .color = styled,
-      .unicode = true,
+      .unicode = cs_surface_unicode_enabled_(),
       .interactive = s->term.is_tty,
       .profile = s->term.profile,
       .color_count = s->term.color_count,
@@ -135,8 +170,9 @@ cs_surface_t *cs_surface_stream_new(FILE *stream, const app_config_t *config,
   };
 #else
   (void)config;
-  s->caps = (cs_caps_t){
-      .unicode = true, .profile = APP_CLI_COLOR_PROFILE_NONE, .width = 80};
+  s->caps = (cs_caps_t){.unicode = cs_surface_unicode_enabled_(),
+                        .profile = APP_CLI_COLOR_PROFILE_NONE,
+                        .width = 80};
 #endif
   return s;
 }

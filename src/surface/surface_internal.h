@@ -46,3 +46,8 @@ struct cs_surface {
 
 // Allocate a zeroed surface with the theme copied in. Returns NULL on OOM.
 cs_surface_t *cs_surface_alloc_(const cs_theme_t *theme);
+
+// Locale/environment capability shared by stream and curses surfaces. Returns
+// true only when the active locale advertises UTF-8, so glyph-using components
+// can fall back to ASCII on legacy terminals.
+bool cs_surface_unicode_enabled_(void);

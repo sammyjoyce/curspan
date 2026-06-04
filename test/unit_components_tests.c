@@ -40,16 +40,6 @@ static cs_surface_t *open_capture(FILE **stream_out) {
   return cs_surface_stream_new(stream, NULL, NULL);
 }
 
-static cs_surface_t *open_capture_theme(FILE **stream_out,
-                                        const cs_theme_t *theme) {
-  FILE *stream = tmpfile();
-  if (!stream) {
-    return NULL;
-  }
-  *stream_out = stream;
-  return cs_surface_stream_new(stream, NULL, theme);
-}
-
 static bool no_escapes(const char *buf) {
   return strstr(buf, "\x1b") == NULL;
 }
@@ -92,6 +82,18 @@ static bool rows_within_width(const char *buf, int width) {
   return true;
 }
 
+#ifdef APP_ENABLE_CLI_STYLE
+static cs_surface_t *open_capture_theme(FILE **stream_out,
+                                        const cs_theme_t *theme) {
+  FILE *stream = tmpfile();
+  if (!stream) {
+    return NULL;
+  }
+  *stream_out = stream;
+  return cs_surface_stream_new(stream, NULL, theme);
+}
+#endif
+
 static bool test_surface_caps_plain(void) {
   FILE *stream = NULL;
   cs_surface_t *s = open_capture(&stream);
@@ -102,6 +104,33 @@ static bool test_surface_caps_plain(void) {
   bool ok = !caps.color && caps.unicode && caps.width > 0 && !caps.tty;
   char buf[64];
   capture(s, stream, buf, sizeof(buf));
+  return ok;
+}
+
+static bool test_surface_caps_ascii_locale(void) {
+  char *previous_lc_all = copy_env("LC_ALL");
+  char *previous_lc_ctype = copy_env("LC_CTYPE");
+  char *previous_lang = copy_env("LANG");
+
+  setenv("LC_ALL", "C", 1);
+  unsetenv("LC_CTYPE");
+  unsetenv("LANG");
+
+  FILE *stream = NULL;
+  cs_surface_t *s = open_capture(&stream);
+  bool ok = s != NULL;
+  if (s) {
+    cs_caps_t caps = cs_surface_caps(s);
+    ok = ok && !caps.unicode;
+    cs_rule_render(&(cs_rule_t){.width = 3}, s);
+    char buf[64];
+    capture(s, stream, buf, sizeof(buf));
+    ok = ok && strcmp(buf, "---\n") == 0;
+  }
+
+  restore_env("LC_ALL", previous_lc_all);
+  restore_env("LC_CTYPE", previous_lc_ctype);
+  restore_env("LANG", previous_lang);
   return ok;
 }
 
@@ -431,6 +460,8 @@ static bool test_progress_respects_width_budget(void) {
 void run_components_unit_tests(unit_stats_t *stats) {
   unit_record(stats, test_surface_caps_plain(),
               "surface reports plain caps on a non-tty stream");
+  unit_record(stats, test_surface_caps_ascii_locale(),
+              "surface reports ASCII glyph fallback under C locale");
   unit_record(stats, test_rule_plain(), "cs_rule renders a labelled divider");
   unit_record(stats, test_heading_plain(),
               "cs_heading upper-cases and renders a title");

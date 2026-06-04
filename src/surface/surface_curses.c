@@ -191,7 +191,7 @@ cs_surface_t *cs_surface_curses_new(tui_window_t *window,
   s->caps = (cs_caps_t){
       .tty = true,
       .color = tui_colors_enabled(),
-      .unicode = true,
+      .unicode = cs_surface_unicode_enabled_(),
       .interactive = true,
       .profile = (COLORS >= 256) ? APP_CLI_COLOR_PROFILE_ANSI256
                                  : APP_CLI_COLOR_PROFILE_ANSI16,
