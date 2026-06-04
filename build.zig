@@ -812,6 +812,45 @@ pub fn build(b: *std.Build) void {
         terminal_test_step.dependOn(&skip_cmd.step);
     }
 
+    // The Curspan component CLI: the framework's ShadCN-style `add` mechanism.
+    // A pure-Zig tool (no libc, no project sources) that reads the registry and
+    // copies a component plus its dependency closure into a consumer's tree.
+    // Built for the host so it runs as a dev tool regardless of -Dtarget.
+    const curspan_exe = b.addExecutable(.{
+        .name = "curspan",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/curspan/main.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    const install_curspan = b.addInstallArtifact(curspan_exe, .{});
+    const curspan_step = b.step("curspan", "Build + install the Curspan component CLI (registry list/info/add/check)");
+    curspan_step.dependOn(&install_curspan.step);
+
+    // `zig build curspan-run -- add table --dest path` runs the tool from the
+    // project root so registry-relative paths resolve.
+    const curspan_run = b.addRunArtifact(curspan_exe);
+    if (b.args) |args| {
+        curspan_run.addArgs(args);
+    }
+    const curspan_run_step = b.step("curspan-run", "Run the Curspan CLI, e.g. zig build curspan-run -- add table");
+    curspan_run_step.dependOn(&curspan_run.step);
+
+    // Registry integrity check, wired into the test suite: every file a
+    // component lists must exist, every dependency must resolve, and the graph
+    // must be acyclic. Absolute paths (via LazyPath) keep it correct regardless
+    // of the directory `zig build` was invoked from.
+    const registry_check = b.addRunArtifact(curspan_exe);
+    registry_check.addArg("check");
+    registry_check.addArg("--registry");
+    registry_check.addFileArg(b.path("registry/registry.json"));
+    registry_check.addArg("--root");
+    registry_check.addDirectoryArg(b.path("."));
+    const registry_step = b.step("registry", "Validate the component registry");
+    registry_step.dependOn(&registry_check.step);
+    test_step.dependOn(&registry_check.step);
+
     // Clean command – cross-platform
     const clean_cmd = if (target.result.os.tag == .windows)
         b.addSystemCommand(&.{ "cmd", "/C", "if exist zig-out rmdir /S /Q zig-out & if exist .zig-cache rmdir /S /Q .zig-cache" })
@@ -823,14 +862,14 @@ pub fn build(b: *std.Build) void {
     // Format commands
     const fmt_step = b.step("fmt", "Format all source files");
     const fmt = b.addFmt(.{
-        .paths = &.{ "build.zig", "src", "test" },
+        .paths = &.{ "build.zig", "src", "test", "tools" },
         .check = false,
     });
     fmt_step.dependOn(&fmt.step);
 
     const fmt_check_step = b.step("fmt-check", "Check source formatting");
     const fmt_check = b.addFmt(.{
-        .paths = &.{ "build.zig", "src", "test" },
+        .paths = &.{ "build.zig", "src", "test", "tools" },
         .check = true,
     });
     fmt_check_step.dependOn(&fmt_check.step);
