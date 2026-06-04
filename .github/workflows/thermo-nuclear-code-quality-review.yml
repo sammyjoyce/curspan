@@ -7,7 +7,6 @@ name: Thermo Nuclear Code Quality Review
 on:
   pull_request:
     types: [opened, reopened, synchronize, converted_to_draft, ready_for_review]
-  push:
   workflow_dispatch:
     inputs:
       pr_number:
@@ -26,7 +25,6 @@ jobs:
     # Always run on manual dispatch.
     if: |
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.head.repo.fork == false &&
        github.actor != 'dependabot[bot]')
