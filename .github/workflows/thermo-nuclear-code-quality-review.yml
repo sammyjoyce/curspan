@@ -15,7 +15,7 @@ on:
         type: string
 
 concurrency:
-  group: thermo-nuclear-code-quality-review-${{ github.event.pull_request.number || inputs.pr_number || github.ref_name }}
+  group: thermo-nuclear-code-quality-review-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -43,9 +43,6 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_PR_NUMBER: ${{ inputs.pr_number }}
           PR_EVENT_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ github.sha }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "number=$INPUT_PR_NUMBER" >> "$GITHUB_OUTPUT"
@@ -57,17 +54,8 @@ jobs:
             exit 0
           fi
 
-          number="$(gh api             -H "Accept: application/vnd.github+json"             "repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls"             --jq 'map(select(.state == "open")) | .[0].number // ""')"
-          if [ -z "$number" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No open pull request contains ${HEAD_SHA}; skipping review."
-            exit 0
-          fi
-          echo "number=$number" >> "$GITHUB_OUTPUT"
-
-      - name: Skip push without open PR
-        if: steps.pr-number.outputs.skip == 'true'
-        run: echo "No open PR found for this push; no review to post."
+          echo "::error::Unexpected event '${EVENT_NAME}'; this workflow only runs on pull_request and workflow_dispatch."
+          exit 1
 
       - name: Resolve PR context
         if: steps.pr-number.outputs.skip != 'true'
