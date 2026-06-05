@@ -1,12 +1,60 @@
 # Public Contracts
 
-This template is an opinionated reference app built on two reusable seams: a
-machine-readable CLI contract and a small C TUI menu primitive. A "contract" here is a
-stability promise. The surfaces listed as *supported* are safe to build automation or
-downstream code on; everything else (help wording, colors, file layout, internal
-helpers) can change without notice.
+Curspan is a framework plus a reference app built on it. A "contract" here is a
+stability promise: the surfaces listed as *supported* are safe to build
+downstream code or automation on; everything else (help wording, colors, internal
+helpers) can change without notice. The contracts:
 
-Keep mechanism in these seams. Keep local workflow policy in the generated app.
+- the **framework API** — the `cs_` theming, surface, and component surfaces, and
+  the component registry ([Framework contract](#framework-contract));
+- the **CLI contract** — the machine-readable `opencli.json` ([CLI contract](#cli-contract));
+- the **TUI menu primitive** — the reusable `tui-menu` library ([TUI menu contract](#tui-menu-contract)).
+
+Keep mechanism in these seams. Keep local workflow policy in your app.
+
+## Framework contract
+
+The framework's public surface is the `cs_` namespace (`curspan.h`) plus the
+component registry. Because components are **open code** — you copy the source
+into your project and own it — the promise is about the *shape* of the surfaces
+you call, not a binary ABI.
+
+**Supported (stable to depend on):**
+
+- the **theming API** in `cs_theme.h`: the `cs_role_t` role aliases, `cs_theme_t`,
+  and the functions `cs_theme_default`, `cs_theme_by_name`, `cs_theme_names`,
+  `cs_theme_mode_resolve`, `cs_theme_set_role`, `cs_theme_set_role_spec`,
+  `cs_theme_resolve`. The default theme is the amber identity; `APP_CLI_THEME` /
+  `APP_CLI_ACCENT` behave as documented in [THEMING.md](THEMING.md).
+- the **surface API** in `surface.h`: `cs_surface_stream_new`,
+  `cs_surface_curses_new` (under `ENABLE_TUI`), `cs_surface_free`, the
+  introspection calls (`cs_surface_caps`/`width`/`theme`), and the drawing calls
+  (`set_role`/`set_role_bg`/`set_attr`/`reset`/`write`/`write_n`/`repeat`/
+  `newline`/`move`/`styled`). A surface borrows its `FILE *` / window and copies
+  its theme.
+- the **component render contract**: each `cs_<name>_t` props struct borrows its
+  pointers (copies nothing, so they must outlive the call); `cs_<name>_render`
+  (and `cs_spinner_render`'s frame index) is the entry point; a `0`/`NULL` role or
+  size means "use the default"; `render(NULL, …)` / `render(…, NULL)` are no-ops.
+- the **registry manifest** schema (`registry/registry.json`): the per-entry
+  `name`, `category`, `surfaces`, `files`, `dependencies`, `since` fields, and the
+  `curspan list` / `info` / `add` / `check` commands. `zig build test` validates
+  the manifest, so it never references a missing file or an unresolved dependency.
+- the **`CURSPAN_VERSION`** compile-time macro (with `CURSPAN_VERSION_ENCODE`) for
+  feature-detecting the framework across updates.
+
+**Private (may change without notice):**
+
+- the exact glyphs, spacing, and color choices a component renders (style, not
+  contract) — pin specific output in your own tests if you depend on it;
+- the internal `app_ui_*` role implementation behind the `cs_` aliases, the
+  surface's vtable and struct internals, and a component's private helpers;
+- the set of built-in theme names beyond `amber` (the default) and `mono`;
+- the registry's transport (it is local-first; there is no network/remote-fetch
+  promise).
+
+After you copy a component in, it is *your* code — edit it freely. The contract
+covers the catalog you copy *from*, not your fork.
 
 ## CLI contract
 
@@ -117,8 +165,9 @@ zig-out/include/curspan/tui/tui_progress.h
 - the `tui_init()` / `tui_cleanup()` lifecycle from `tui.h`
 - `tui_set_color_enabled()` to set the color policy before `tui_init()` — the
   generated app passes `app_use_colors(config)` so the TUI honours the same
-  `NO_COLOR` / `FORCE_COLOR` / `CLICOLOR(_FORCE)` / `--no-color` / `--plain`
-  inputs as the CLI; left unset, the TUI falls back to terminal capability alone
+  `NO_COLOR` / `FORCE_COLOR` / `CLICOLOR(_FORCE)` / `APP_CLI_COLOR=never` /
+  `--no-color` / `--plain` inputs as the CLI; left unset, the TUI falls back
+  to terminal capability alone
 - `tui_show_menu()` from `tui_menu.h`
 - `tui_menu_config_t`, `tui_menu_item_t`, and `tui_menu_result_t`
 - the pointer-lifetime rules documented in `tui_menu.h`
@@ -126,8 +175,9 @@ zig-out/include/curspan/tui/tui_progress.h
 - the `TUI_MENU_VERSION` compile-time macro (with `TUI_MENU_VERSION_ENCODE`) for feature-detecting the seam across template updates
 
 The archive is self-contained: it bundles the shared UI primitives the menu
-needs (`text_layout.c`, `design_tokens.c`), so linking it requires only a
-curses library. The archive is also self-contained for a foreign toolchain — it
+needs (text layout, color math, design tokens, and semantic UI roles —
+`text_layout.c`, `color_math.c`, `design_tokens.c`, `ui_theme.c`), so linking it
+requires only a curses library. The archive is also self-contained for a foreign toolchain — it
 is compiled with `sanitize_c = .trap`, so its UBSan checks lower to inline traps
 instead of calls into Zig's UBSan runtime, and a plain `cc` link resolves with
 no `__ubsan_handle_*` symbols even from a Debug/ReleaseSafe build.
@@ -151,17 +201,33 @@ cc app.c $(pkg-config --cflags tui-menu) \
 
 - `tui_menu_internal.h` and `tui_menu_state_t` internals
 - cell-by-cell rendering details
+- exact colors, palette slots, and color-pair mappings (the CLI and generated
+  TUI intentionally share the same env policy and semantic roles, but not a
+  stable color ABI)
 - exact footer/help text inside the alternate screen
 - terminal-test snapshots, except where a test names a specific invariant
 
 ## Not yet
 
-Do not add a plugin API, stable ABI promise, long-running headless service, or
-broad TUI framework until multiple generated projects need the same unsupported
-behavior. Prefer a CLI/spec addition or a small library function before any
-in-process extension system.
+The framework is deliberately a **catalog you copy from**, not a runtime you link
+against. A few things are out of scope until a real need appears across projects:
+
+- **No binary ABI / plugin system.** Distribution is open code via the registry,
+  not a loadable interface. There is no stable ABI promise beyond the source-level
+  `cs_` shapes above and the `tui-menu` archive; prefer copying a component and
+  editing it over a dynamic extension seam.
+- **No network registry.** The registry is local-first (`registry/registry.json`
+  in this repo); there is no remote component fetch or third-party registry
+  protocol.
+- **No new runtime CLI commands or flags** in the reference app that would change
+  the byte-pinned `opencli.json` contract — the framework lives in the `cs_` API
+  and the out-of-band `curspan` tool, not in new subcommands.
+- **No long-running headless service** and **no nested-subcommand engine** until
+  multiple projects need the same behavior.
 
 ## See also
 
+- [COMPONENTS.md](COMPONENTS.md) - the component catalog and the render surface
+- [THEMING.md](THEMING.md) - the theming API and color degradation
 - [ARCHITECTURE.md](ARCHITECTURE.md) - where these seams sit in the codebase
 - [TESTING.md](TESTING.md) - the tests that enforce the CLI contract

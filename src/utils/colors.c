@@ -59,6 +59,15 @@ bool app_use_colors(const app_config_t *config) {
     return false;
   }
 
+  // Shared UI style policy: APP_CLI_COLOR=never disables both the styled CLI
+  // layer and the generated TUI color bridge. The APP_CLI_ prefix is kept for
+  // compatibility with the existing public environment contract. Treat it as a
+  // hard disable, like NO_COLOR, so it wins over FORCE_COLOR=1.
+  const char *cli_color = getenv("APP_CLI_COLOR");
+  if (cli_color && strcmp(cli_color, "never") == 0) {
+    return false;
+  }
+
   // FORCE_COLOR / CLICOLOR_FORCE / CLICOLOR, parsed per the de-facto spec:
   // FORCE_COLOR=0 disables, a force flag enables even off a TTY.
   switch (app_color_env_force()) {

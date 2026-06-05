@@ -6,16 +6,37 @@
 [![Zig](https://img.shields.io/badge/Zig-0.16.0-F7A41D?style=for-the-badge&logo=zig)](https://ziglang.org/)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sammyjoyce/curspan?style=for-the-badge&label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/sammyjoyce/curspan)
 
-A ready-to-use C23 starter for command-line tools and terminal UIs. Click **Use this
-template**, run the cleanup script, and you have a cross-compiling C project with
-argument parsing, a default ncurses TUI, end-to-end tests, and a GitHub
-Actions CI/CD scaffold.
+A high-level framework for building command-line tools and terminal UIs in C23 —
+ShadCN for the terminal. A curated catalog of themeable components, one neutral
+render surface that targets a CLI stream or a TUI window, and a registry + `add`
+CLI that copies a component and its dependencies into your project, so you **own
+the source**.
 
-[Use this template](https://github.com/sammyjoyce/curspan/generate) • [Read the setup guide](.template/TEMPLATE_USAGE.md) • [Report a template issue](https://github.com/sammyjoyce/curspan/issues)
+Use it two ways:
+
+- **Add components to your project** — `curspan add table` copies `cs_table` (and
+  its dependency closure) into your tree. See [COMPONENTS.md](docs/COMPONENTS.md).
+- **Start from the reference app** — click **Use this template** for a complete,
+  cross-compiling C23 CLI + TUI app (argument parsing, a default ncurses UI,
+  end-to-end tests, and a GitHub Actions CI/CD scaffold) with the framework
+  already wired in.
+
+[Use this template](https://github.com/sammyjoyce/curspan/generate) • [Components](docs/COMPONENTS.md) • [Theming](docs/THEMING.md) • [Setup guide](.template/TEMPLATE_USAGE.md)
 
 ---
 
 ## Highlights
+
+The framework:
+
+- **Own your components** - Each component is a self-contained `.c/.h` pair you copy in and edit, not a dependency you link against ([open code](docs/COMPONENTS.md)).
+- **One render surface, two backends** - Components draw through a neutral [`cs_surface`](docs/COMPONENTS.md#the-surface) that targets a CLI byte stream *or* an ncurses window, degrading color per terminal.
+- **Theme by semantic roles** - A [design-token → role → theme](docs/THEMING.md)
+  pipeline; components style themselves through roles, so re-theming is a one-line
+  change. Named themes, per-role overrides, dark/light, and color degradation.
+- **A registry + `add` CLI** - `curspan list` / `info` / `add` copies a component and its dependency closure into your project from a machine-readable [registry](registry/registry.json).
+
+The reference app:
 
 - **Modern C23, no compiler wrangling** - The latest C standard through Zig's bundled toolchain.
 - **CLI and TUI in one** - Argument parsing and colored output, plus a default ncurses/PDCurses interface (`-Denable-tui=false` disables it).
@@ -24,6 +45,35 @@ Actions CI/CD scaffold.
 - **Tested end to end** - Three test layers: in-process unit tests, C23 CLI contract tests, and PTY-driven terminal scenarios for real CLI/TUI behavior.
 - **CI/CD scaffold included** - GitHub Actions for builds, tests, linting, release artifacts, and optional security checks.
 - **OpenCLI-style contract** - A checked-in machine-readable CLI contract your tool can print on demand with `myapp opencli`.
+
+## The framework
+
+Components draw through a neutral surface and style themselves through theme
+roles, so one component renders on a piped CLI, a truecolor terminal, and inside
+a TUI screen:
+
+```c
+#include "curspan.h"
+
+cs_surface_t *s = cs_surface_stream_new(stdout, config, NULL); // NULL => default theme
+cs_heading_render(&(cs_heading_t){.text = "Build report", .underline = true}, s);
+cs_table_render(&(cs_table_t){.columns = cols, .column_count = 2,
+                              .cells = cells, .row_count = n, .header = true}, s);
+cs_surface_free(s);
+```
+
+The catalog (`curspan list`): `cs_rule`, `cs_heading`, `cs_badge`, `cs_note`,
+`cs_keyvalue`, `cs_list`, `cs_table`, `cs_progress`, and `cs_spinner` — built on
+the `surface` and `theme` foundations.
+
+Add one to your project — it copies the component and everything it depends on:
+
+```bash
+zig build curspan                        # build zig-out/bin/curspan
+./zig-out/bin/curspan add table --dest .  # copy cs_table + its deps into ./src/...
+```
+
+Full reference: [COMPONENTS.md](docs/COMPONENTS.md) and [THEMING.md](docs/THEMING.md).
 
 ## Quick Start
 
@@ -256,10 +306,15 @@ The template wires up far more than the starter code. The full inventory:
 
 Start with [**Using This Template**](.template/TEMPLATE_USAGE.md) for the full setup guide.
 
+### Framework
+
+- [**Components**](docs/COMPONENTS.md) - The component catalog, the render surface, and the drawing API
+- [**Theming**](docs/THEMING.md) - Design tokens, semantic roles, named themes, overrides, and color degradation
+
 ### Developer resources
 
-- [**Architecture Overview**](docs/ARCHITECTURE.md) - System design and module structure
-- [**Public Contracts**](docs/CONTRACTS.md) - Supported CLI and TUI seams
+- [**Architecture Overview**](docs/ARCHITECTURE.md) - System design, the framework layer, and module structure
+- [**Public Contracts**](docs/CONTRACTS.md) - Supported framework, CLI, and TUI seams
 - [**Zig Primer for C Developers**](docs/ZIG_PRIMER.md) - Understanding the build system
 - [**Testing CLI And TUI Behavior**](docs/TESTING.md) - End-to-end terminal scenario tests
 - [**Contributing Guide**](CONTRIBUTING.md) - How to contribute to the project
@@ -267,8 +322,8 @@ Start with [**Using This Template**](.template/TEMPLATE_USAGE.md) for the full s
 
 ### Examples and demos
 
-- [**Adding Commands**](examples/adding-a-command.md) - Extend the CLI
-- [**Custom TUI Components**](examples/custom-tui.md) - Build interactive interfaces
+- [**Composing Components**](examples/custom-tui.md) - Render the catalog on a CLI or TUI surface
+- [**Adding Commands**](examples/adding-a-command.md) - Extend the reference app's CLI
 - [**Configuration Guide**](examples/config.json) - Config file examples
 - [**Demo Gallery**](docs/demos/README.md) - Animated demonstrations
 
@@ -299,9 +354,9 @@ For issues with your generated project:
 
 ## License
 
-This template is MIT licensed. See [LICENSE](LICENSE) for details.
+Curspan is MIT licensed. See [LICENSE](LICENSE) for details.
 
-When you use this template, you can choose any license for your project.
+When you start from the reference app, you can choose any license for your project.
 
 ---
 

@@ -8,12 +8,11 @@
  *   2. app_cli_styles_t        — those tokens resolved to indexed/RGB colors +
  *      attributes for the detected terminal.
  *
- * The default scheme's dark tokens are derived at runtime from the shared
- * design palette (design_tokens.h / APP_DESIGN_PALETTE) so the CLI matches the
- * TUI from a single source of truth - no hand-maintained duplicate literals.
- * The scheme degrades to ANSI-256/ANSI-16 per the detected profile (each token
- * carries a semantic ANSI-16 fallback hint), and callers may apply per-token
- * overrides.
+ * The default scheme's tokens are projected from the shared semantic UI theme
+ * (style/ui_theme.h) so the CLI and TUI share role meaning instead of
+ * hand-maintained duplicate palettes. The scheme degrades to ANSI-256/ANSI-16
+ * per the detected profile (each token carries a semantic ANSI-16 fallback
+ * hint), and callers may apply per-token overrides.
  */
 
 #pragma once

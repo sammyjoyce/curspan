@@ -68,9 +68,10 @@ zig build terminal-test \
 
 Unit tests link a subset of the production sources directly, so they exercise modules
 like `core/config.c`, `core/error.c`, and `tui/tui_menu_model.c` without spawning a
-process. Add cases to `test/unit_config_tests.c` or `test/unit_tui_menu_tests.c` (or a
-new file registered in the `unit-test` sources in `build.zig`), then run `zig build
-unit-test`.
+process. Shared CLI/TUI style roles are covered in `test/unit_ui_theme_tests.c`, while
+renderer-specific CLI behavior lives in `test/unit_cli_style_tests.c`. Add cases to the
+closest existing file (or a new file registered in the `unit-test` sources in
+`build.zig`), then run `zig build unit-test`.
 
 Reach for a unit test when you can call a function and check its result directly. Reach for a CLI contract test when the behavior is only observable from the outside (exit code, stdout, JSON).
 

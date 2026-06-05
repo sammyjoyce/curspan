@@ -30,13 +30,15 @@ static const app_opencli_metadata_field_t environment_fields[] = {
      .description = "Set to a non-zero value to force colored output on"},
     {.name = "CLICOLOR", .description = "Set 0 to disable colored output"},
     {.name = "APP_CLI_THEME",
-     .description = "CLI theme: auto (detect), dark, or light"},
+     .description = "Terminal UI theme for styled CLI and generated TUI: auto, "
+                    "dark, or light"},
     {.name = "APP_CLI_COLOR",
-     .description = "Color profile: auto, never, 16, 256, truecolor"},
+     .description =
+         "Terminal UI color profile: auto, never, 16, 256, truecolor"},
     {.name = "APP_CLI_OSC11",
      .description = "Set 0 to disable terminal background detection"},
     {.name = "APP_CLI_ACCENT",
-     .description = "Override accent color (#rrggbb or palette index)"},
+     .description = "Override terminal UI accent (#rrggbb or palette index)"},
 };
 
 static const app_opencli_metadata_field_t configuration_fields[] = {

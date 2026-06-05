@@ -165,7 +165,7 @@ build reaches ~49 KB under `ReleaseSmall`.
    | Array | Compiled when | For |
    | --- | --- | --- |
    | `base_sources` | always | core CLI/app code |
-   | `shared_ui_sources` | TUI **or** CLI styling enabled | text layout + design tokens shared by both front-ends |
+   | `shared_ui_sources` | TUI **or** CLI styling enabled | text layout + color math + design tokens + semantic UI theme roles shared by both front-ends |
    | `cli_style_sources` | `-Denable-cli-style` (default on) | CLI help/error/version renderers |
    | `tui_sources` | `-Denable-tui` (default on) | ncurses screens |
 

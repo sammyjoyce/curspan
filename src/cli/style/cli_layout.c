@@ -8,34 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../style/cs_theme.h"
 #include "../../ui/text_layout.h"
-
-// Resolve light/dark mode. APP_CLI_THEME (or the APP_CLI_TEST_THEME test hook)
-// can force "dark"/"light"; "auto" or unset triggers OSC 11 background
-// detection (which probes the controlling /dev/tty, not the render stream, and
-// skips when there is no usable controlling terminal or when disabled),
-// defaulting to dark when detection is unavailable.
-static app_cli_theme_mode_id app_cli_resolve_mode(const app_cli_term_t *term,
-                                                  const app_config_t *config) {
-  const char *theme = getenv("APP_CLI_TEST_THEME");
-  if (!theme) {
-    theme = getenv("APP_CLI_THEME");
-  }
-  if (theme) {
-    if (strcmp(theme, "light") == 0) {
-      return APP_CLI_THEME_MODE_LIGHT;
-    }
-    if (strcmp(theme, "dark") == 0) {
-      return APP_CLI_THEME_MODE_DARK;
-    }
-    // Any other value (e.g. "auto") falls through to detection.
-  }
-
-  if (app_cli_term_detect_background(term, config) == APP_CLI_BG_LIGHT) {
-    return APP_CLI_THEME_MODE_LIGHT;
-  }
-  return APP_CLI_THEME_MODE_DARK;
-}
 
 bool app_cli_render_ctx_init(app_cli_render_ctx_t *ctx,
                              const app_config_t *config, FILE *stream,
@@ -63,9 +37,11 @@ bool app_cli_render_ctx_init(app_cli_render_ctx_t *ctx,
   if (ctx->styled) {
     app_cli_color_scheme_t scheme = *app_cli_theme_default_scheme();
     app_cli_theme_apply_env_overrides(&scheme);
-    app_cli_styles_compile(&ctx->styles, &scheme,
-                           app_cli_resolve_mode(&ctx->term, config),
-                           ctx->term.profile, ctx->term.color_count);
+    const app_cli_theme_mode_id mode = cs_theme_mode_resolve() == CS_MODE_LIGHT
+                                           ? APP_CLI_THEME_MODE_LIGHT
+                                           : APP_CLI_THEME_MODE_DARK;
+    app_cli_styles_compile(&ctx->styles, &scheme, mode, ctx->term.profile,
+                           ctx->term.color_count);
   }
   return ctx->styled;
 }

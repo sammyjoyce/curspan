@@ -319,8 +319,9 @@ pub fn build(b: *std.Build) void {
     // (app-core, below) and linked into both, instead of being compiled twice.
     // Keep this list to the unconditional intersection: anything gated by
     // -Denable-tui / -Denable-cli-style (design_tokens, text_layout, color_math,
-    // cli/style/*, tui/*) must stay per-target so a minimal build still skips it,
-    // and the mutually-exclusive terminal backends stay per-target too.
+    // ui_theme, cli/style/*, tui/*) must stay per-target so a minimal build
+    // still skips it, and the mutually-exclusive terminal backends stay
+    // per-target too.
     const core_shared_sources = [_][]const u8{
         "src/core/app_info.c",
         "src/core/diagnostics.c",
@@ -426,22 +427,37 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.linkLibrary(core_lib);
 
-    // UI primitives shared by *both* front-ends: UTF-8 text layout and the
-    // design palette. The TUI seeds its truecolor entries from
-    // APP_DESIGN_PALETTE and lays out rows with app_text_*; the CLI styling
-    // layer uses the same helpers. They must compile whenever EITHER front-end
-    // is enabled, so they live outside the cli-style gate below. (Previously
-    // they sat in cli_style_sources, which made `-Denable-cli-style=false` with
-    // the default TUI fail to link APP_DESIGN_PALETTE / app_text_*.)
+    // UI primitives shared by *both* front-ends: UTF-8 text layout, color math,
+    // raw design tokens, and semantic UI roles. The TUI and styled CLI both map
+    // their renderer-specific tokens/pairs through this layer, so color meaning
+    // stays shared while each terminal backend degrades independently.
     const shared_ui_sources = [_][]const u8{
         "src/ui/text_layout.c",
+        "src/style/color_math.c",
         "src/style/design_tokens.c",
+        "src/style/ui_theme.c",
+        // Framework foundation: the public theming API and the neutral render
+        // surface (stream backend + dispatch). Compiled whenever either
+        // front-end is on; the curses backend (surface_curses.c) is appended
+        // with the TUI sources below.
+        "src/style/cs_theme.c",
+        "src/surface/surface.c",
+        // Component catalog: each renders through cs_surface, so the same
+        // component works on a CLI stream and a TUI window.
+        "src/components/cs_rule.c",
+        "src/components/cs_heading.c",
+        "src/components/cs_badge.c",
+        "src/components/cs_note.c",
+        "src/components/cs_keyvalue.c",
+        "src/components/cs_list.c",
+        "src/components/cs_table.c",
+        "src/components/cs_progress.c",
+        "src/components/cs_spinner.c",
     };
 
-    // CLI styling sources (cli/style renderers + color math). The terminal
-    // backend is chosen at build time: terminfo when available, else ANSI.
+    // CLI styling sources (cli/style renderers). The terminal backend is chosen
+    // at build time: terminfo when available, else ANSI.
     const cli_style_sources = [_][]const u8{
-        "src/style/color_math.c",
         "src/cli/style/cli_term.c",
         "src/cli/style/cli_term_osc11.c",
         "src/cli/style/cli_theme.c",
@@ -499,6 +515,9 @@ pub fn build(b: *std.Build) void {
             "src/tui/tui_menu_adapter.c",
             "src/tui/tui_menu_model.c",
             "src/tui/tui_progress.c",
+            // The cs_surface curses backend. Isolated from surface.c so a
+            // CLI-only build never links ncurses through the surface layer.
+            "src/surface/surface_curses.c",
         };
 
         exe.root_module.addCSourceFiles(.{
@@ -557,13 +576,15 @@ pub fn build(b: *std.Build) void {
             "src/core/error.c",
             "src/utils/logging.c",
             "src/io/terminal.c",
-            // Shared UI primitives the TUI links against: tui.c seeds its
-            // truecolor entries from APP_DESIGN_PALETTE (design_tokens.c) and
-            // lays out menu rows with app_text_* (text_layout.c). Both
-            // definitions must be archived or a consumer of libtui-menu.a fails
-            // to link app_text_truncate_utf8_columns / app_text_wrap_utf8.
-            "src/style/design_tokens.c",
+            // Shared UI primitives the TUI links against: text layout, color
+            // math, raw design tokens, and semantic UI roles. These definitions
+            // must be archived or a consumer of libtui-menu.a fails to link the
+            // standalone menu/window implementation.
             "src/ui/text_layout.c",
+            "src/style/color_math.c",
+            "src/style/design_tokens.c",
+            "src/style/ui_theme.c",
+            "src/style/cs_theme.c",
             "src/tui/tui.c",
             "src/tui/tui_menu.c",
             "src/tui/tui_menu_adapter.c",
@@ -669,6 +690,7 @@ pub fn build(b: *std.Build) void {
             "test/unit_config_tests.c",
             "test/unit_input_tests.c",
             "test/unit_tui_menu_tests.c",
+            "test/unit_ui_theme_tests.c",
             "test/unit_cli_style_tests.c",
             "test/unit_cli_osc11_tests.c",
             "test/unit_shared_primitives_tests.c",
@@ -687,6 +709,23 @@ pub fn build(b: *std.Build) void {
             "src/ui/text_layout.c",
             "src/style/color_math.c",
             "src/style/design_tokens.c",
+            "src/style/ui_theme.c",
+            // Framework foundation under test. surface_curses.c is intentionally
+            // excluded: the unit binary links no ncurses, and the stream
+            // backend in surface.c is curses-free.
+            "src/style/cs_theme.c",
+            "src/surface/surface.c",
+            // Component catalog under test (rendered to a non-TTY stream).
+            "src/components/cs_rule.c",
+            "src/components/cs_heading.c",
+            "src/components/cs_badge.c",
+            "src/components/cs_note.c",
+            "src/components/cs_keyvalue.c",
+            "src/components/cs_list.c",
+            "src/components/cs_table.c",
+            "src/components/cs_progress.c",
+            "src/components/cs_spinner.c",
+            "test/unit_components_tests.c",
             "src/cli/style/cli_term.c",
             "src/cli/style/cli_term_osc11.c",
             "src/cli/style/cli_term_ansi.c",
@@ -774,6 +813,45 @@ pub fn build(b: *std.Build) void {
         terminal_test_step.dependOn(&skip_cmd.step);
     }
 
+    // The Curspan component CLI: the framework's ShadCN-style `add` mechanism.
+    // A pure-Zig tool (no libc, no project sources) that reads the registry and
+    // copies a component plus its dependency closure into a consumer's tree.
+    // Built for the host so it runs as a dev tool regardless of -Dtarget.
+    const curspan_exe = b.addExecutable(.{
+        .name = "curspan",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/curspan/main.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    const install_curspan = b.addInstallArtifact(curspan_exe, .{});
+    const curspan_step = b.step("curspan", "Build + install the Curspan component CLI (registry list/info/add/check)");
+    curspan_step.dependOn(&install_curspan.step);
+
+    // `zig build curspan-run -- add table --dest path` runs the tool from the
+    // project root so registry-relative paths resolve.
+    const curspan_run = b.addRunArtifact(curspan_exe);
+    if (b.args) |args| {
+        curspan_run.addArgs(args);
+    }
+    const curspan_run_step = b.step("curspan-run", "Run the Curspan CLI, e.g. zig build curspan-run -- add table");
+    curspan_run_step.dependOn(&curspan_run.step);
+
+    // Registry integrity check, wired into the test suite: every file a
+    // component lists must exist, every dependency must resolve, and the graph
+    // must be acyclic. Absolute paths (via LazyPath) keep it correct regardless
+    // of the directory `zig build` was invoked from.
+    const registry_check = b.addRunArtifact(curspan_exe);
+    registry_check.addArg("check");
+    registry_check.addArg("--registry");
+    registry_check.addFileArg(b.path("registry/registry.json"));
+    registry_check.addArg("--root");
+    registry_check.addDirectoryArg(b.path("."));
+    const registry_step = b.step("registry", "Validate the component registry");
+    registry_step.dependOn(&registry_check.step);
+    test_step.dependOn(&registry_check.step);
+
     // Clean command – cross-platform
     const clean_cmd = if (target.result.os.tag == .windows)
         b.addSystemCommand(&.{ "cmd", "/C", "if exist zig-out rmdir /S /Q zig-out & if exist .zig-cache rmdir /S /Q .zig-cache" })
@@ -785,14 +863,14 @@ pub fn build(b: *std.Build) void {
     // Format commands
     const fmt_step = b.step("fmt", "Format all source files");
     const fmt = b.addFmt(.{
-        .paths = &.{ "build.zig", "src", "test" },
+        .paths = &.{ "build.zig", "src", "test", "tools" },
         .check = false,
     });
     fmt_step.dependOn(&fmt.step);
 
     const fmt_check_step = b.step("fmt-check", "Check source formatting");
     const fmt_check = b.addFmt(.{
-        .paths = &.{ "build.zig", "src", "test" },
+        .paths = &.{ "build.zig", "src", "test", "tools" },
         .check = true,
     });
     fmt_check_step.dependOn(&fmt_check.step);

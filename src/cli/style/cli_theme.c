@@ -5,39 +5,53 @@
 
 #include "cli_theme.h"
 
-#include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../style/design_tokens.h"
-
-// RGB token with a semantic ANSI-16 fallback hint.
-#define RGBH(rr, gg, bb, hint)                  \
-  ((app_cli_color_t){.kind = APP_CLI_COLOR_RGB, \
-                     .rgb = {(rr), (gg), (bb)}, \
-                     .has_ansi16_hint = true,   \
-                     .ansi16_hint = (hint)})
-
-#define ADAPT(d, l) ((app_cli_adaptive_color_t){.dark = (d), .light = (l)})
+#include "../../style/ui_theme.h"
 
 // ANSI-16 indices used as hints: 1 red, 2 green, 3 yellow, 7 white,
 // 8 bright-black (gray), 11 bright-yellow, 15 bright-white.
 
-// Build an RGB token from a shared-palette triple plus an ANSI-16 hint.
-static app_cli_color_t app_cli_rgbh(app_rgb_t rgb, uint8_t hint) {
-  return (app_cli_color_t){.kind = APP_CLI_COLOR_RGB,
-                           .rgb = rgb,
-                           .has_ansi16_hint = true,
-                           .ansi16_hint = hint};
+static app_cli_color_kind_id app_cli_color_kind_from_ui(
+    app_ui_color_kind_id kind) {
+  switch (kind) {
+  case APP_UI_COLOR_RGB:
+    return APP_CLI_COLOR_RGB;
+  case APP_UI_COLOR_ANSI256:
+    return APP_CLI_COLOR_ANSI256;
+  case APP_UI_COLOR_ANSI16:
+    return APP_CLI_COLOR_ANSI16;
+  case APP_UI_COLOR_DEFAULT:
+    return APP_CLI_COLOR_DEFAULT;
+  case APP_UI_COLOR_UNSET:
+  default:
+    return APP_CLI_COLOR_UNSET;
+  }
 }
 
-// Default scheme: amber-on-near-black (dark) with a readable light variant.
-// The dark tokens are derived at runtime from the shared design palette
-// (APP_DESIGN_PALETTE in design_tokens.h) so the CLI and TUI stay one source of
-// truth - no hand-maintained "keep in sync" literals. ERROR_HEADER_FG has no
-// palette field and keeps its own literal. The light variants stay as literals.
+static app_cli_color_t app_cli_color_from_ui(app_ui_color_t color) {
+  return (app_cli_color_t){.kind = app_cli_color_kind_from_ui(color.kind),
+                           .rgb = color.rgb,
+                           .ansi256 = color.ansi256,
+                           .ansi16 = color.ansi16,
+                           .has_ansi16_hint = color.has_ansi16_hint,
+                           .ansi16_hint = color.ansi16_hint};
+}
+
+static app_cli_adaptive_color_t app_cli_token_from_role(
+    const app_ui_color_scheme_t *scheme, app_ui_role_id role) {
+  return (app_cli_adaptive_color_t){
+      .dark = app_cli_color_from_ui(scheme->roles[role].dark),
+      .light = app_cli_color_from_ui(scheme->roles[role].light),
+  };
+}
+
+// Default scheme: CLI tokens are an adapter over the shared semantic UI roles
+// in src/style/ui_theme.c. The CLI keeps Fang-style token names for renderer
+// readability, while the actual color meaning is shared with the ncurses TUI.
 static app_cli_color_scheme_t APP_CLI_DEFAULT_SCHEME;
 static bool APP_CLI_DEFAULT_SCHEME_READY;
 
@@ -45,44 +59,45 @@ static void app_cli_theme_init_default_scheme(void) {
   if (APP_CLI_DEFAULT_SCHEME_READY) {
     return;
   }
-  const app_design_palette_t *p = &APP_DESIGN_PALETTE;
+
+  const app_ui_color_scheme_t *ui = app_ui_theme_default_scheme();
   APP_CLI_DEFAULT_SCHEME = (app_cli_color_scheme_t){
       .tokens =
           {
               [APP_CLI_COLOR_TOKEN_BASE] =
-                  ADAPT(app_cli_rgbh(p->fg, 7), RGBH(60, 56, 54, 0)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_TEXT),
               [APP_CLI_COLOR_TOKEN_TITLE] =
-                  ADAPT(app_cli_rgbh(p->amber, 11), RGBH(135, 94, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_TITLE),
               [APP_CLI_COLOR_TOKEN_DESCRIPTION] =
-                  ADAPT(app_cli_rgbh(p->fg, 7), RGBH(60, 56, 54, 0)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_DESCRIPTION),
               [APP_CLI_COLOR_TOKEN_CODEBLOCK] =
-                  ADAPT(app_cli_rgbh(p->amber, 3), RGBH(110, 78, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_CODE),
               [APP_CLI_COLOR_TOKEN_PROGRAM] =
-                  ADAPT(app_cli_rgbh(p->amber, 11), RGBH(135, 94, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_PROGRAM),
               [APP_CLI_COLOR_TOKEN_DIMMED_ARGUMENT] =
-                  ADAPT(app_cli_rgbh(p->muted, 8), RGBH(120, 112, 105, 8)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_MUTED),
               [APP_CLI_COLOR_TOKEN_COMMENT] =
-                  ADAPT(app_cli_rgbh(p->muted, 8), RGBH(120, 112, 105, 8)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_COMMENT),
               [APP_CLI_COLOR_TOKEN_FLAG] =
-                  ADAPT(app_cli_rgbh(p->amber, 11), RGBH(135, 94, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_FLAG),
               [APP_CLI_COLOR_TOKEN_FLAG_DEFAULT] =
-                  ADAPT(app_cli_rgbh(p->muted, 8), RGBH(120, 112, 105, 8)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_FLAG_DEFAULT),
               [APP_CLI_COLOR_TOKEN_COMMAND] =
-                  ADAPT(app_cli_rgbh(p->amber, 11), RGBH(135, 94, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_COMMAND),
               [APP_CLI_COLOR_TOKEN_QUOTED_STRING] =
-                  ADAPT(app_cli_rgbh(p->green, 2), RGBH(75, 115, 55, 2)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_QUOTED_STRING),
               [APP_CLI_COLOR_TOKEN_ARGUMENT] =
-                  ADAPT(app_cli_rgbh(p->fg, 7), RGBH(60, 56, 54, 0)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_ARGUMENT),
               [APP_CLI_COLOR_TOKEN_HELP] =
-                  ADAPT(app_cli_rgbh(p->amber, 11), RGBH(135, 94, 20, 3)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_HELP),
               [APP_CLI_COLOR_TOKEN_DASH] =
-                  ADAPT(app_cli_rgbh(p->muted, 8), RGBH(120, 112, 105, 8)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_DASH),
               [APP_CLI_COLOR_TOKEN_ERROR_HEADER_FG] =
-                  ADAPT(RGBH(255, 245, 235, 15), RGBH(255, 255, 255, 15)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_ERROR_HEADER_FG),
               [APP_CLI_COLOR_TOKEN_ERROR_HEADER_BG] =
-                  ADAPT(app_cli_rgbh(p->red, 1), RGBH(180, 55, 50, 1)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_ERROR_HEADER_BG),
               [APP_CLI_COLOR_TOKEN_ERROR_DETAILS] =
-                  ADAPT(app_cli_rgbh(p->red, 1), RGBH(145, 40, 35, 1)),
+                  app_cli_token_from_role(ui, APP_UI_ROLE_ERROR_DETAILS),
           },
   };
   APP_CLI_DEFAULT_SCHEME_READY = true;
@@ -110,56 +125,49 @@ static app_cli_attr_mask_t app_cli_token_attrs(app_cli_color_token_id token) {
   }
 }
 
+// CLI tokens and the shared UI roles use structurally identical color types;
+// resolution is the one shared degradation policy in style/ui_theme.c. Convert
+// to the UI color, delegate, and map the result back so the stream surface, the
+// curses surface, and these help/error styles all degrade identically.
+static app_ui_color_kind_id app_ui_color_kind_from_cli(
+    app_cli_color_kind_id kind) {
+  switch (kind) {
+  case APP_CLI_COLOR_RGB:
+    return APP_UI_COLOR_RGB;
+  case APP_CLI_COLOR_ANSI256:
+    return APP_UI_COLOR_ANSI256;
+  case APP_CLI_COLOR_ANSI16:
+    return APP_UI_COLOR_ANSI16;
+  case APP_CLI_COLOR_DEFAULT:
+    return APP_UI_COLOR_DEFAULT;
+  case APP_CLI_COLOR_UNSET:
+  default:
+    return APP_UI_COLOR_UNSET;
+  }
+}
+
 static app_cli_resolved_color_t app_cli_color_resolve(
     app_cli_color_t color, app_cli_color_profile_id profile, int color_count) {
-  switch (color.kind) {
-  case APP_CLI_COLOR_UNSET:
-    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_NONE};
-  case APP_CLI_COLOR_DEFAULT:
-    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_DEFAULT};
-  default:
-    break;
-  }
-
-  if (profile == APP_CLI_COLOR_PROFILE_TRUECOLOR &&
-      color.kind == APP_CLI_COLOR_RGB) {
+  app_ui_color_t ui = {.kind = app_ui_color_kind_from_cli(color.kind),
+                       .rgb = color.rgb,
+                       .ansi256 = color.ansi256,
+                       .ansi16 = color.ansi16,
+                       .has_ansi16_hint = color.has_ansi16_hint,
+                       .ansi16_hint = color.ansi16_hint};
+  app_ui_resolved_color_t r = app_ui_color_resolve(ui, profile, color_count);
+  switch (r.kind) {
+  case APP_UI_RESOLVED_INDEXED:
+    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_INDEXED,
+                                      .index = r.index};
+  case APP_UI_RESOLVED_RGB:
     return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_RGB,
-                                      .rgb = color.rgb};
+                                      .rgb = r.rgb};
+  case APP_UI_RESOLVED_DEFAULT:
+    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_DEFAULT};
+  case APP_UI_RESOLVED_NONE:
+  default:
+    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_NONE};
   }
-
-  if (profile == APP_CLI_COLOR_PROFILE_ANSI256) {
-    uint8_t index;
-    if (color.kind == APP_CLI_COLOR_ANSI256) {
-      index = color.ansi256;
-    } else if (color.kind == APP_CLI_COLOR_ANSI16) {
-      index = color.ansi16;
-    } else {
-      index = app_color_rgb_to_xterm256(color.rgb);
-    }
-    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_INDEXED,
-                                      .index = index};
-  }
-
-  if (profile == APP_CLI_COLOR_PROFILE_ANSI16) {
-    uint8_t index;
-    if (color.kind == APP_CLI_COLOR_ANSI16) {
-      index = color.ansi16;
-    } else if (color.has_ansi16_hint) {
-      index = color.ansi16_hint;
-    } else if (color.kind == APP_CLI_COLOR_ANSI256) {
-      index = color.ansi256 < 16 ? color.ansi256 : 7;
-    } else {
-      index = app_color_rgb_to_ansi16(color.rgb);
-    }
-    // Fold bright colors onto the base 8 for true 8-color terminals.
-    if (color_count > 0 && color_count < 16 && index >= 8) {
-      index = (uint8_t)(index - 8);
-    }
-    return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_INDEXED,
-                                      .index = index};
-  }
-
-  return (app_cli_resolved_color_t){.kind = APP_CLI_RESOLVED_COLOR_NONE};
 }
 
 static app_cli_color_t app_cli_pick(const app_cli_adaptive_color_t *adaptive,
@@ -205,66 +213,15 @@ const app_cli_style_t *app_cli_style(const app_cli_styles_t *styles,
 }
 
 bool app_cli_color_parse(const char *spec, app_cli_color_t *out) {
-  if (!spec || !out || !spec[0]) {
+  if (!out) {
     return false;
   }
-  const char *s = (spec[0] == '#') ? spec + 1 : spec;
-  size_t len = strlen(s);
-
-  // Hex RGB: exactly 6 hex digits, optionally '#'-prefixed.
-  bool all_hex = len == 6;
-  for (size_t i = 0; all_hex && i < len; i++) {
-    if (!isxdigit((unsigned char)s[i])) {
-      all_hex = false;
-    }
+  app_ui_color_t parsed;
+  if (!app_ui_color_parse(spec, &parsed)) {
+    return false;
   }
-  if (all_hex) {
-    // Parse each two-digit channel through the shared hex reader so #RRGGBB and
-    // OSC 11 share one code path (a two-digit field has max 0xff, so the scale
-    // is the identity here).
-    const char *p = s;
-    uint8_t ch[3];
-    for (int i = 0; i < 3; i++) {
-      unsigned value;
-      unsigned field_max;
-      if (!app_color_read_hex(&p, p + 2, 2, &value, &field_max)) {
-        return false;
-      }
-      ch[i] = app_color_channel_to_u8(value, field_max);
-    }
-    app_rgb_t rgb = {ch[0], ch[1], ch[2]};
-    *out = (app_cli_color_t){.kind = APP_CLI_COLOR_RGB,
-                             .rgb = rgb,
-                             .has_ansi16_hint = true,
-                             .ansi16_hint = app_color_rgb_to_ansi16(rgb)};
-    return true;
-  }
-
-  // Decimal ANSI palette index (not valid with a '#' prefix).
-  if (spec[0] != '#' && len > 0) {
-    bool all_digits = true;
-    for (size_t i = 0; i < len; i++) {
-      if (!isdigit((unsigned char)s[i])) {
-        all_digits = false;
-        break;
-      }
-    }
-    if (all_digits) {
-      long v = strtol(s, NULL, 10);
-      if (v < 0 || v > 255) {
-        return false;
-      }
-      if (v < 16) {
-        *out = (app_cli_color_t){.kind = APP_CLI_COLOR_ANSI16,
-                                 .ansi16 = (uint8_t)v};
-      } else {
-        *out = (app_cli_color_t){.kind = APP_CLI_COLOR_ANSI256,
-                                 .ansi256 = (uint8_t)v};
-      }
-      return true;
-    }
-  }
-  return false;
+  *out = app_cli_color_from_ui(parsed);
+  return true;
 }
 
 void app_cli_theme_apply_env_overrides(app_cli_color_scheme_t *scheme) {
